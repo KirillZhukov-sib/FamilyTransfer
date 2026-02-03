@@ -243,6 +243,7 @@
     <Compile Include="ClassLibrary\SectionHelper.cs" />
     <Compile Include="ClassLibrary\SortingElement.cs" />
     <Compile Include="Command.cs" />
+    <Compile Include="ClassLibrary\EquipmentDetector.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

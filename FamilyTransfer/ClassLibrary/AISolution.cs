@@ -122,6 +122,8 @@ namespace RevitToMySQL
                         return ("-", "-");
                     }
 
+
+
                     double lenghtX = (parkform.Max.X - parkform.Min.X) / countSectionCivil;
 
                     //начинаем резать форму стоянки на несколько боксов, по числу секций в корпусе, создаем коллекцию этих форм
@@ -221,3 +223,122 @@ namespace RevitToMySQL
         }
     }
 }
+
+
+
+
+
+
+
+
+
+/*
+ * 
+ * using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Mechanical;
+using Autodesk.Revit.DB.Plumbing;
+using Autodesk.Revit.UI;
+using FamilyTransfer;
+using MySql.Data.MySqlClient;
+using Mysqlx.Crud;
+using Org.BouncyCastle.Asn1.X509;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using static Mysqlx.Datatypes.Scalar.Types;
+using static System.Collections.Specialized.BitVector32;
+
+namespace RevitToMySQL
+{
+    public class EquipmentDetector
+    {
+        public static List<FamilyInfo> Equip(List<Element> familyList)
+        {
+            List<FamilyInfo> familyEquipment = new List<FamilyInfo>();
+
+            if (familyList == null || !familyList.Any())
+                return familyEquipment;
+
+            string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDEQU");
+
+            using (MySqlConnection connection = new MySqlConnection(connectionString))
+            {
+
+
+                connection.Open();
+                string groupQuery = @"SELECT subeq_pipes_sub_ucode, 
+                                                 subeq_pipes_sub_modification,
+                                                 subeq_pipes_sub_workpressure,
+                                                 subeq_pipes_sub_size,
+                                                 subeq_pipes_formula
+                                        FROM Equip_subequipment_pipes 
+                                        WHERE subeq_pipes_prnt_ucode = @гсщ"
+                ;
+
+                using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))
+                {
+                    groupCommand.Parameters.Add("@equip_name", MySqlDbType.VarChar);
+                    foreach (Element e in familyList)
+                    {
+
+
+                        ElementId typeId = e.GetTypeId();
+                        Element familyType = null;
+
+                        if (typeId != ElementId.InvalidElementId)
+                        {
+                            familyType = e.Document.GetElement(typeId);
+                        }
+
+                        string familyname = familyType?.LookupParameter("BS_Код изделия")?.AsString() ?? "-";
+                        string familyModification = familyType?.LookupParameter("MEP_Модификация")?.AsString() ?? "-";
+
+                        if (string.IsNullOrEmpty(familyname) || familyname == "-")
+                            continue;
+
+
+
+                        groupCommand.Parameters["@equip_name"].Value = familyname.Trim();
+                        object bscodeResult = groupCommand.ExecuteScalar();
+
+                        if (bscodeResult != null && bscodeResult != DBNull.Value)
+                        {
+                            string bscode = bscodeResult.ToString();
+                            familyEquipment.Add(new FamilyInfo
+                            {
+                                FamilyName = "комплектация тест",
+                                Ucode = bscode,
+                                Modification = "2",
+                                WorkPressure = "2",
+                                Size = "2",
+                                Amount = "2"
+                            });
+                        }
+
+
+
+                    }
+                }
+
+
+            }
+            return familyEquipment;
+        }
+    }
+}
+
+
+
+
+
+
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * */

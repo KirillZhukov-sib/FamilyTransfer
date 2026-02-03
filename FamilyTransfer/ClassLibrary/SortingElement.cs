@@ -29,6 +29,9 @@ namespace FamilyTransfer.ClassLibrary
 
                 using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))
                 {
+
+
+
                     groupCommand.Parameters.AddWithValue("@system_name", sysName.Replace("'", "''"));
                     object groupResult = groupCommand.ExecuteScalar();
                     groupOrder = groupResult?.ToString() ?? "-";

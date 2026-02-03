@@ -229,33 +229,32 @@ namespace RevitToMySQL
                     }
                 }
             }
-            //if (sysPipeName.Contains("Т"))
-            //{
-            //    using (MySqlConnection connection = new MySqlConnection(connectionString))
-            //    {
-            //        connection.Open();
+            if (sysPipeName.Contains("Т"))
+            {
+                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                {
+                    connection.Open();
 
-            //        string groupQuery = @"SELECT sorting_code 
-            //                            FROM default_register_OV1 
-            //                            WHERE family_system_name REGEXP CONCAT('(^|, )', @system_name, '(, |$)')";
+                    string groupQuery = @"SELECT sorting_code 
+                                        FROM default_register_OV1 
+                                        WHERE family_system_name REGEXP CONCAT('(^|, )', @system_name, '(, |$)')";
 
-            //        using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))
-            //        {
+                    using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))
+                    {
+                        groupCommand.Parameters.AddWithValue("@system_name", sysPipeName.Replace("'", "''"));
+                        object result = groupCommand.ExecuteScalar();
 
-            //            groupCommand.Parameters.AddWithValue("@system_name", sysPipeName.Replace("'", "''"));
-            //            object result = groupCommand.ExecuteScalar();
-
-            //            if (result != null && result != DBNull.Value)
-            //            {
-            //                return Convert.ToInt32(result);
-            //            }
-            //            else
-            //            {
-            //                return 0;
-            //            }
-            //        }
-            //    }
-            //}
+                        if (result != null && result != DBNull.Value)
+                        {      
+                            return Convert.ToInt32(result);
+                        }
+                        else
+                        {
+                            return 0;
+                        }
+                    }
+                }
+            }
             return 0;
         } 
 

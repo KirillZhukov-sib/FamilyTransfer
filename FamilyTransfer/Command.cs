@@ -48,12 +48,12 @@ namespace RevitToMySQL
                 }
                 //----   БЛОК 1. Получение всех элементов ----
                 var pipeElements = ElementCollectorHelper.GetPipeElements(doc);
-                var ductElements = ElementCollectorHelper.GetDuctElements(doc);
+                //var ductElements = ElementCollectorHelper.GetDuctElements(doc);
 
-                if (pipeElements.Count == 0 && ductElements.Count == 0)
-                {
-                    TaskDialog.Show("Информация", "В проекте нет элементов для экспорта.");
-                }
+                //if (pipeElements.Count == 0 && ductElements.Count == 0)
+                //{
+                //    TaskDialog.Show("Информация", "В проекте нет элементов для экспорта.");
+                //}
                 //получение всех эелментов из связей
 
                 //foreach (Document l in linksdocument)
@@ -67,28 +67,19 @@ namespace RevitToMySQL
 
                 //----   БЛОК 2. ОБРАБОТКА ПАРАМЕТРОВ ----
                 var pipeData = ParameterProcessor.GetParameters(pipeElements, doc);
-                var ductData = ParameterProcessor.GetParameters(ductElements, doc);
+                //var ductData = ParameterProcessor.GetParameters(ductElements, doc);
+                var pipeDataEquip = EquipmentDetector.Equip(pipeElements); // передали собранные pipeData и получили LIST<familyinfo>, комплектации семейств труб.
+                //var ductDataEquip = EquipmentDetector.Equip(ductElements); // комплектации семейств воздуховодов
+
 
                 //обработка элементов связей 
-
-
-
-
                 ////----   БЛОК 2.1. Сортировка  ----
                 //ductData.OrderBy(x => x.SortingCode)
                 //    .ThenBy(x => x.SystemName)
                 //    .ThenBy(x => x.Order);
-
                 //pipeData.OrderBy(x => x.SortingCode)
                 //    .ThenBy(x => x.SystemName)
                 //    .ThenBy(x => x.Order);
-
-
-
-
-
-
-
 
 
                 //----   БЛОК 3. ЭКСПОРТ В MySQL ----
@@ -96,8 +87,13 @@ namespace RevitToMySQL
                 {
                     string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("testovk");
                     MySqlExporter.ExportToMySQL(pipeData, "pipetest", connectionString);
-                    MySqlExporter.ExportToMySQL(ductData, "ducttest", connectionString);
-                    TaskDialog.Show("Успех", $"Экспортировано элементов: {pipeElements.Count + ductElements.Count}");
+                    //MySqlExporter.ExportToMySQL(ductData, "ducttest", connectionString);
+
+                    MySqlExporter.ExportToMySQL(pipeDataEquip, "pipetest", connectionString); //вот тут  передача LISTa коплектаций
+                    //MySqlExporter.ExportToMySQL(ductDataEquip, "ducttest", connectionString); //вот тут  передача LISTa коплектаций
+
+
+                    //TaskDialog.Show("Успех", $"Экспортировано элементов: {pipeElements.Count + ductElements.Count}");
                 }
                 catch (Exception ex)
                 {
@@ -105,6 +101,10 @@ namespace RevitToMySQL
                     return Result.Failed;
                 }
                 return Result.Succeeded;
+
+
+
+
             }
             catch (Exception ex)
             {

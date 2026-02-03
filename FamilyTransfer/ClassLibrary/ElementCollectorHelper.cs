@@ -22,6 +22,7 @@ namespace RevitToMySQL
                     new ElementCategoryFilter(BuiltInCategory.OST_PipeInsulations),
                 }))
                 .WhereElementIsNotElementType()
+                .WhereElementIsViewIndependent()
                 .OrderBy(x => x.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsValueString() ?? "")
                 .ToList();
         }         
@@ -37,6 +38,7 @@ namespace RevitToMySQL
                     new ElementCategoryFilter(BuiltInCategory.OST_DuctInsulations),
                 }))
                 .WhereElementIsNotElementType()
+                //.WhereElementIsViewIndependent()
                 .ToList();
         }
     }
