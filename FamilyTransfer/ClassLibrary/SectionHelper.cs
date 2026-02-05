@@ -102,7 +102,7 @@ namespace RevitToMySQL
 
             //начинаем резать форму стоянки на несколько боксов, по числу секций в корпусе, создаем коллекцию этих форм
 
-            List<(string section, string part, BoundingBoxXYZ form)> bounds = new List<(string, string, BoundingBoxXYZ)>();
+            List<(string section, string part, BoundingBoxXYZ form)> bounds = new List<(string, string, BoundingBoxXYZ)>(); 
 
             for (int i = 1; i <= countSectionCivil; i++)
             {
