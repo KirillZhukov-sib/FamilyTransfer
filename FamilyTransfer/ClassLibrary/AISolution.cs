@@ -1,9 +1,12 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Windows.Forms;
-using Autodesk.Revit.Attributes;
+﻿using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using MySql.Data.MySqlClient;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Windows.Forms;
 using static System.Windows.Forms.LinkLabel;
 
 namespace RevitToMySQL
@@ -343,3 +346,15 @@ namespace RevitToMySQL
  * 
  * 
  * */
+
+
+
+
+
+
+
+
+
+
+
+
