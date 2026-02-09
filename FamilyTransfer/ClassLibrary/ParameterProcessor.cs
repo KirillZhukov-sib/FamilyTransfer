@@ -68,13 +68,13 @@ namespace RevitToMySQL
             return result;
         }
 
-        private static string GetSection(Element element, Document doc)
+        public static string GetSection(Element element, Document doc)
         {
             var (section, _) = SectionHelper.GetBuildingSectionForElement(doc, element);
             return section;
         }
 
-        private static string GetPart(Element element, Document doc)
+        public static string GetPart(Element element, Document doc)
         {
             var (_, part) = SectionHelper.GetBuildingSectionForElement(doc, element);
             return part;

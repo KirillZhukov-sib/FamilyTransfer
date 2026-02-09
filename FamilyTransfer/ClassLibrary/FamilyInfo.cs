@@ -26,7 +26,6 @@ namespace RevitToMySQL
         public string Part { get; set; }
         public int ID { get; set; }
         public int SortingCode {  get; set; }
-        //public bool EquipmentAccess { get; set; } = true;
     }
 }
 

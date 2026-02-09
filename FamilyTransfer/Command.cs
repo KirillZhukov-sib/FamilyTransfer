@@ -17,7 +17,7 @@ namespace RevitToMySQL
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;
             Document doc = uiDoc.Document;
 
-            TaskDialog.Show("Программа запущена", "Программа запущена123");
+            TaskDialog.Show("Программа запущена", "Программа запущена122");
 
             try
             {
@@ -68,7 +68,7 @@ namespace RevitToMySQL
                 //----   БЛОК 2. ОБРАБОТКА ПАРАМЕТРОВ ----
                 var pipeData = ParameterProcessor.GetParameters(pipeElements, doc);
                 //var ductData = ParameterProcessor.GetParameters(ductElements, doc);
-                var pipeDataEquip = EquipmentDetector.Equip(pipeElements); // передали собранные pipeData и получили LIST<familyinfo>, комплектации семейств труб.
+                var pipeDataEquip = EquipmentDetector.Equip(pipeElements, doc); // передали собранные pipeData и получили LIST<familyinfo>, комплектации семейств труб.
                 //var ductDataEquip = EquipmentDetector.Equip(ductElements); // комплектации семейств воздуховодов
 
 

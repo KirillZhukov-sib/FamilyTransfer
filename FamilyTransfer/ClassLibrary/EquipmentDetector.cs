@@ -15,7 +15,7 @@ namespace RevitToMySQL
 {
     public class EquipmentDetector
     {
-        public static List<FamilyInfo> Equip(List<Element> familyList)
+        public static List<FamilyInfo> Equip(List<Element> familyList, Document doc)
         {
             List<FamilyInfo> familyEquipment = new List<FamilyInfo>();
 
@@ -147,6 +147,14 @@ namespace RevitToMySQL
                                     }
                                     //else continue;
 
+                                    //секция 
+                                    string section = ParameterProcessor.GetSection(e, doc);
+                                    string part = ParameterProcessor.GetPart(e, doc);
+
+                                    //секция 
+
+
+
                                     // триггер
 
 
@@ -186,7 +194,9 @@ namespace RevitToMySQL
                                             Size = finalSize,
                                             Amount = reader.IsDBNull(4) ? "" : reader.GetString(4),
                                             SystemName = systemName,
-                                            ID = familyID
+                                            ID = familyID,
+                                            Section = section,
+                                            Part = part
                                         });
                                     }
                                     else continue;
@@ -199,7 +209,7 @@ namespace RevitToMySQL
             }
             catch (NullReferenceException ex)
             {
-                TaskDialog.Show("Ошибка в начале метода",
+                TaskDialog.Show("Ошибка",
         $"Message: {ex.Message}\nStackTrace: {ex.StackTrace}");
                 return new List<FamilyInfo>();
             }
