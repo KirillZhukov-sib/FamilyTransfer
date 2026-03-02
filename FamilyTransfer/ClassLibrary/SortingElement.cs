@@ -14,6 +14,7 @@ namespace FamilyTransfer.ClassLibrary
         private static string GetSortingCode(Element element)
         {
 
+
             string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDCLC");
             string sysName = element.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
 

@@ -234,6 +234,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.cs" />
+    <Compile Include="ClassLibrary\SqlQueries.cs" />
     <Compile Include="ClassLibrary\AISolution.cs" />
     <Compile Include="ClassLibrary\MySqlExporter.cs" />
     <Compile Include="ClassLibrary\ConnectionStringHelper.cs" />
@@ -244,6 +245,8 @@
     <Compile Include="ClassLibrary\SortingElement.cs" />
     <Compile Include="Command.cs" />
     <Compile Include="ClassLibrary\EquipmentDetector.cs" />
+    <Compile Include="ClassLibrary\OtherSections.cs" />
+    <Compile Include="Counter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

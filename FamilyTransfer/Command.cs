@@ -23,12 +23,20 @@ namespace RevitToMySQL
             {
                 //---- БЛОК 0. Получение связанных моделей ОВ ---
 
+                //List<RevitLinkInstance> linksOV = new FilteredElementCollector(doc)
+                //.OfClass(typeof(RevitLinkInstance))
+                //.Cast<RevitLinkInstance>()
+                //.Where(link => System.Text.RegularExpressions.Regex.IsMatch(
+                //    link.Name, @"^\d{4}-Р-[A-Za-zА-Яа-я]{0,3}-.+-ОВ-(ОВ[1-3])_.+$"))
+                //.ToList();
+
                 List<RevitLinkInstance> linksOV = new FilteredElementCollector(doc)
-                .OfClass(typeof(RevitLinkInstance))
-                .Cast<RevitLinkInstance>()
-                .Where(link => System.Text.RegularExpressions.Regex.IsMatch(
-                    link.Name, @"^\d{4}-Р-[A-Za-zА-Яа-я]{0,3}-.+-ОВ-(ОВ[1-3])_.+$"))
-                .ToList();
+               .OfClass(typeof(RevitLinkInstance))
+               .Cast<RevitLinkInstance>()
+               .ToList();
+
+
+
 
                 List<Document> linksdocument = new List<Document>();
                 if (linksOV == null)
@@ -45,7 +53,17 @@ namespace RevitToMySQL
                             linksdocument.Add(linkdoc);
                         }
                     }
+                    int number = linksOV.Count();
+                    TaskDialog.Show("Информация", $"В проекте есть {number} связанных моделей");
+
                 }
+
+
+
+                
+
+
+
                 //----   БЛОК 1. Получение всех элементов ----
                 var pipeElements = ElementCollectorHelper.GetPipeElements(doc);
                 //var ductElements = ElementCollectorHelper.GetDuctElements(doc);
@@ -66,10 +84,11 @@ namespace RevitToMySQL
                 //}
 
                 //----   БЛОК 2. ОБРАБОТКА ПАРАМЕТРОВ ----
-                var pipeData = ParameterProcessor.GetParameters(pipeElements, doc);
+                //var pipeData = ParameterProcessor.GetParameters(pipeElements, doc);
                 //var ductData = ParameterProcessor.GetParameters(ductElements, doc);
-                var pipeDataEquip = EquipmentDetector.Equip(pipeElements, doc); // передали собранные pipeData и получили LIST<familyinfo>, комплектации семейств труб.
+                //var pipeDataEquip = EquipmentDetector.Equip(pipeElements, doc); // передали собранные pipeData и получили LIST<familyinfo>, комплектации семейств труб.
                 //var ductDataEquip = EquipmentDetector.Equip(ductElements); // комплектации семейств воздуховодов
+
 
 
                 //обработка элементов связей 
@@ -87,10 +106,10 @@ namespace RevitToMySQL
                 try
                 {
                     string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("testovk");
-                    MySqlExporter.ExportToMySQL(pipeData, "pipetest", connectionString);
+                    //MySqlExporter.ExportToMySQL(pipeData, "pipetest", connectionString);
                     //MySqlExporter.ExportToMySQL(ductData, "ducttest", connectionString);
 
-                    MySqlExporter.ExportToMySQL(pipeDataEquip, "pipetest", connectionString); //вот тут  передача LISTa коплектаций
+                    //MySqlExporter.ExportToMySQL(pipeDataEquip, "pipetest", connectionString); //вот тут  передача LISTa коплектаций
                     //MySqlExporter.ExportToMySQL(ductDataEquip, "ducttest", connectionString); //вот тут  передача LISTa коплектаций
 
 
@@ -102,6 +121,45 @@ namespace RevitToMySQL
                     return Result.Failed;
                 }
                 return Result.Succeeded;
+            
+
+
+
+
+
+
+
+
+
+                /* 1 Указание на сборку элементов
+                 2 Указание на подготовку параметров 
+                3 Указание на передачу параметра
+                4 Указание на Сортировку
+                5 Указание на подготовку комплектаций 
+
+                */
+
+
+
+                /* проверить 
+                 * считываение координат
+                 * дозаполнение размера 
+                 * обработка связей
+                 */
+                 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

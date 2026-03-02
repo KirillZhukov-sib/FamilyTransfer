@@ -40,6 +40,10 @@ namespace RevitToMySQL
                                  WHERE subeq_pipes_prnt_ucode = @ucode 
                                    AND subeq_pipes_prnt_modification = @modification";
 
+
+
+
+
                     using (MySqlCommand command = new MySqlCommand(query, connection))
                     {
                         command.Parameters.Add("@ucode", MySqlDbType.VarChar);
@@ -63,13 +67,14 @@ namespace RevitToMySQL
 
                             int familyID = e.Id.IntegerValue;
                             string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
+
                             //string section = ParameterProcessor.GetSection(e, doc);
                             //string part = ParameterProcessor.GetPart(e, doc);
 
 
                             //if (string.IsNullOrEmpty(familyUcode) || familyUcode == "-")
                             //    continue;
-
+                           
                             command.Parameters["@ucode"].Value = familyUcode;
                             command.Parameters["@modification"].Value = familyModification;
 
@@ -165,6 +170,7 @@ namespace RevitToMySQL
                                         access = true;
                                     }
                                     else { access = false; }
+                                    
 
 
 

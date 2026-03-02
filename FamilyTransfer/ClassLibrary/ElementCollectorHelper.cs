@@ -15,6 +15,7 @@ namespace RevitToMySQL
             return new FilteredElementCollector(doc)
                 .WherePasses(new LogicalOrFilter(new List<ElementFilter>
                 {
+
                     new ElementCategoryFilter(BuiltInCategory.OST_PipeFitting),
                     new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory),
                     new ElementCategoryFilter(BuiltInCategory.OST_PlumbingFixtures),

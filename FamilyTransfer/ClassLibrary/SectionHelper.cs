@@ -91,6 +91,10 @@ namespace RevitToMySQL
                 return ("-", "-");
             }
 
+
+
+
+
             BoundingBoxXYZ parkform = sectionParking.get_BoundingBox(null);
             if (parkform == null) 
             {
@@ -121,6 +125,7 @@ namespace RevitToMySQL
             civilbounds.AddRange(bounds);
 
             // ---
+
             //1 Этап. Работаем в каждом боксе секции жильяч 
             foreach (var bb in civilbounds)
             {   
@@ -143,6 +148,7 @@ namespace RevitToMySQL
         }
 
         private static bool IsCivil(Element elem)
+
         {
             Parameter param = elem.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM);
             if (param == null) return false;
@@ -166,6 +172,7 @@ namespace RevitToMySQL
             if (param == null) return false;
 
             string value = param.AsString() ?? "";
+
 
             bool hasSystem = System.Text.RegularExpressions.Regex.IsMatch(value, @"^[TТ](14|24|15|25)$"); 
             bool hasLetterA = System.Text.RegularExpressions.Regex.IsMatch(value, @"[аАaA]");

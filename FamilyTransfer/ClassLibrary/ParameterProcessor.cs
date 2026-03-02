@@ -38,8 +38,8 @@ namespace RevitToMySQL
                 string workpressure = GetWorkPressure(e);
                 string ductEI = e.LookupParameter("Огнестойкость")?.AsValueString() ?? "-";
                 string order = MakeOrder(e);
-                //string size = GetElementSize(e);
-                string size = "-";
+                string size = GetElementSize(e);
+                //string size = "-";
                 string systemname = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
                 string amount = GetElementAmount(e);
                 string section = GetSection(e, doc);
@@ -62,7 +62,8 @@ namespace RevitToMySQL
                     Section = section,
                     Part = part,
                     ID = e.Id.IntegerValue,
-                    SortingCode = sorting
+                    SortingCode = sorting 
+
                 });
             }
             return result;
@@ -82,12 +83,17 @@ namespace RevitToMySQL
 
         private static string GetElementSize(Element e)
         {
-
+            //воздуховоды (круглые и прямоугольные )  AxH(D)
+            //в mysql добавить столбцы для гирины/высоты 
+            double ductWidth;
+            double ductHieght = 0;
+            string ductSizeResult;
 
             if (e is Pipe)
             {
                 return e.get_Parameter(BuiltInParameter.RBS_CALCULATED_SIZE)?.AsString() ?? "-";
             }
+
             else if (e is Duct)
             {
                 if (e.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM)?.AsDouble() > 0)
@@ -96,7 +102,11 @@ namespace RevitToMySQL
                 }
                 else
                 {
-                    return e.get_Parameter(BuiltInParameter.RBS_CALCULATED_SIZE)?.AsString() ?? "-";
+                    ductHieght = e.get_Parameter(BuiltInParameter.RBS_CURVE_HEIGHT_PARAM).AsDouble() * 0.3048;
+                    ductWidth = e.get_Parameter(BuiltInParameter.RBS_CURVE_HEIGHT_PARAM).AsDouble() * 0.3048;
+                    ductSizeResult = $"{ductHieght} + {ductWidth}";
+                    return ductSizeResult;
+
                 }
             }
             else if (e is FamilyInstance)
@@ -221,7 +231,7 @@ namespace RevitToMySQL
                         if (result != null && result != DBNull.Value)
                         {
                             return Convert.ToInt32(result);  
-                        }
+                        } 
                         else
                         {
                             return 0;
@@ -230,8 +240,7 @@ namespace RevitToMySQL
                 }
             }
             if (sysPipeName.Contains("Т"))
-            {
-                using (MySqlConnection connection = new MySqlConnection(connectionString))
+            {                using (MySqlConnection connection = new MySqlConnection(connectionString))
                 {
                     connection.Open();
 
@@ -271,6 +280,9 @@ namespace RevitToMySQL
 
             string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDEQU");
 
+
+
+
             using (MySqlConnection connection = new MySqlConnection(connectionString))
             {
                 connection.Open();
@@ -279,7 +291,7 @@ namespace RevitToMySQL
                 string groupOrder = "-";
 
 
-                using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))
+                using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))  
                 {
                     groupCommand.Parameters.AddWithValue("@funcgroupName", funcgroup);
                     object groupResult = groupCommand.ExecuteScalar();
