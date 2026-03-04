@@ -8,58 +8,111 @@ namespace RevitToMySQL
     {
         public static void ExportToMySQL(List<FamilyInfo> elements, string tableName, string connectionString)
         {
+            if (elements == null || elements.Count == 0) return;
+
             using (MySqlConnection connection = new MySqlConnection(connectionString))
             {
                 connection.Open();
 
-                string sql = tableName == "pipetest" ? GetPipeInsertSql() : GetDuctInsertSql();
-
-                foreach (var e in elements)
+                using (MySqlTransaction transaction = connection.BeginTransaction())
                 {
-                    using (MySqlCommand command = new MySqlCommand(sql, connection))
+                    string sql = tableName == "pipetest" ? GetPipeInsertSql() : GetDuctInsertSql();
+
+                    using (MySqlCommand command = new MySqlCommand(sql, connection, transaction))
                     {
-                        AddParameters(command, e, tableName);
-                        command.ExecuteNonQuery();
+                        // Подготавливаем команду один раз
+                        PrepareCommandParameters(command, tableName);
+                        command.Prepare();
+
+                        foreach (var e in elements)
+                        {
+                            // Заполняем параметры значениями
+                            SetCommandParameters(command, e, tableName);
+                            command.ExecuteNonQuery();
+                        }
                     }
+
+                    transaction.Commit();
                 }
             }
         }
-        private static string GetPipeInsertSql()
-        {
-            return @"INSERT INTO pipetest (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, WorkPressure, `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting)
-                    VALUES (@familyname, @ucode, @funcgroup, @functypes, @modification, @workpressure, @order, @size, @systemname, @amount, @section, @part, @id, @sorting);";
-        }
-        private static string GetDuctInsertSql()
 
+        private static void PrepareCommandParameters(MySqlCommand command, string tableName)
         {
-            return @"INSERT INTO ducttest (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, DuctEI, `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting)
-                    VALUES (@familyname, @ucode, @funcgroup, @functypes, @modification, @ductei, @order, @size, @systemname, @amount, @section, @part, @id, @sorting);";
-        }
-        private static void AddParameters(MySqlCommand command, FamilyInfo e, string tableName)
-        {
-            command.Parameters.AddWithValue("@familyname", e.FamilyName ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@ucode", e.Ucode ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@funcgroup", e.FuncGroup ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@functypes", e.FuncTypes ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@modification", e.Modification ?? (object)DBNull.Value);
+            // Очищаем существующие параметры
+            command.Parameters.Clear();
+
+            // Добавляем все возможные параметры
+            command.Parameters.Add("@familyname", MySqlDbType.VarChar);
+            command.Parameters.Add("@ucode", MySqlDbType.VarChar);
+            command.Parameters.Add("@funcgroup", MySqlDbType.VarChar);
+            command.Parameters.Add("@functypes", MySqlDbType.VarChar);
+            command.Parameters.Add("@modification", MySqlDbType.VarChar);
 
             if (tableName == "pipetest")
             {
-                command.Parameters.AddWithValue("@workpressure", e.WorkPressure ?? (object)DBNull.Value);
+                command.Parameters.Add("@workpressure", MySqlDbType.VarChar);
             }
             else
             {
-                command.Parameters.AddWithValue("@ductei", e.DuctEI ?? (object)DBNull.Value);
+                command.Parameters.Add("@ductei", MySqlDbType.VarChar);
             }
 
-            command.Parameters.AddWithValue("@order", e.Order ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@size", e.Size ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@systemname", e.SystemName ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@amount", e.Amount ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@section", e.Section ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@part", e.Part ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@id", e.ID);
-            command.Parameters.AddWithValue("@sorting", e.SortingCode);
+            command.Parameters.Add("@order", MySqlDbType.VarChar);
+            command.Parameters.Add("@size", MySqlDbType.VarChar);
+            command.Parameters.Add("@systemname", MySqlDbType.VarChar);
+            command.Parameters.Add("@amount", MySqlDbType.VarChar);
+            command.Parameters.Add("@section", MySqlDbType.VarChar);
+            command.Parameters.Add("@part", MySqlDbType.VarChar);
+            command.Parameters.Add("@id", MySqlDbType.Int32);
+            command.Parameters.Add("@sorting", MySqlDbType.Int32);
+        }
+
+        private static void SetCommandParameters(MySqlCommand command, FamilyInfo e, string tableName)
+        {
+            command.Parameters["@familyname"].Value = e.FamilyName ?? (object)DBNull.Value;
+            command.Parameters["@ucode"].Value = e.Ucode ?? (object)DBNull.Value;
+            command.Parameters["@funcgroup"].Value = e.FuncGroup ?? (object)DBNull.Value;
+            command.Parameters["@functypes"].Value = e.FuncTypes ?? (object)DBNull.Value;
+            command.Parameters["@modification"].Value = e.Modification ?? (object)DBNull.Value;
+
+            if (tableName == "pipetest")
+            {
+                command.Parameters["@workpressure"].Value = e.WorkPressure ?? (object)DBNull.Value;
+            }
+            else
+            {
+                command.Parameters["@ductei"].Value = e.DuctEI ?? (object)DBNull.Value;
+            }
+
+            command.Parameters["@order"].Value = e.Order ?? (object)DBNull.Value;
+            command.Parameters["@size"].Value = e.Size ?? (object)DBNull.Value;
+            command.Parameters["@systemname"].Value = e.SystemName ?? (object)DBNull.Value;
+            command.Parameters["@amount"].Value = e.Amount ?? (object)DBNull.Value;
+            command.Parameters["@section"].Value = e.Section ?? (object)DBNull.Value;
+            command.Parameters["@part"].Value = e.Part ?? (object)DBNull.Value;
+            command.Parameters["@id"].Value = e.ID;
+            command.Parameters["@sorting"].Value = e.SortingCode;
+        }
+
+        private static string GetPipeInsertSql()
+        {
+            return @"INSERT INTO pipetest 
+                    (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, WorkPressure, 
+                     `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting)
+                    VALUES 
+                    (@familyname, @ucode, @funcgroup, @functypes, @modification, @workpressure,
+                     @order, @size, @systemname, @amount, @section, @part, @id, @sorting);";
+        }
+
+        private static string GetDuctInsertSql()
+        {
+            return @"INSERT INTO ducttest 
+                    (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, DuctEI,
+                     `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting)
+                    VALUES 
+                    (@familyname, @ucode, @funcgroup, @functypes, @modification, @ductei,
+                     @order, @size, @systemname, @amount, @section, @part, @id, @sorting);";
         }
     }
 }

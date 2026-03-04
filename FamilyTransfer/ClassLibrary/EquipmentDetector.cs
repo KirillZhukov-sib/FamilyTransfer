@@ -1,13 +1,7 @@
-﻿
-using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Mechanical;
-using Autodesk.Revit.DB.Plumbing;
+﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using Google.Protobuf.WellKnownTypes;
-using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -15,209 +9,157 @@ namespace RevitToMySQL
 {
     public class EquipmentDetector
     {
-        public static List<FamilyInfo> Equip(List<Element> familyList, Document doc)
+        public static List<FamilyInfo> Equip(List<Element> familyList, Document doc,
+                                              DatabaseCache dbCache, SectionCache sectionCache)
         {
-            List<FamilyInfo> familyEquipment = new List<FamilyInfo>();
+            if (familyList == null || !familyList.Any() || dbCache == null)
+                return new List<FamilyInfo>();
 
-            if (familyList == null || !familyList.Any())
-                return familyEquipment;
+            var result = new List<FamilyInfo>();
 
             try
             {
-                string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDEQU");
-
-                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                foreach (Element e in familyList)
                 {
-                    connection.Open();
-
-                    string query = @"SELECT subeq_pipes_sub_ucode, 
-                                        subeq_pipes_sub_modification,
-                                        subeq_pipes_sub_workpressure,
-                                        subeq_pipes_sub_size,
-                                        subeq_pipes_formula,
-                                        subeq_pipes_triggers
-                                 FROM Equip_subequipment_pipes 
-                                 WHERE subeq_pipes_prnt_ucode = @ucode 
-                                   AND subeq_pipes_prnt_modification = @modification";
-
-
-
-
-
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    try
                     {
-                        command.Parameters.Add("@ucode", MySqlDbType.VarChar);
-                        command.Parameters.Add("@modification", MySqlDbType.VarChar);
-
-                        foreach (Element e in familyList)
+                        Element familyType = null;
+                        ElementId typeId = e.GetTypeId();
+                        if (typeId != ElementId.InvalidElementId)
                         {
-                            ElementId typeId = e.GetTypeId();
-                            Element familyType = null;
+                            familyType = e.Document.GetElement(typeId);
+                        }
 
-                            if (typeId != ElementId.InvalidElementId)
+                        string ucode = familyType?.LookupParameter("BS_Код изделия")?.AsString()?.Trim() ?? "-";
+                        string modification = familyType?.LookupParameter("MEP_Модификация")?.AsString()?.Trim() ?? "-";
+
+                        var subEquipment = dbCache.GetSubEquipment(ucode, modification);
+                        if (subEquipment == null || subEquipment.Count == 0) continue;
+
+                        string familySize = ExtractSize(familyType);
+                        string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
+
+                        var sectionInfo = sectionCache.GetSectionAndPartForElement(e);
+                        string section = sectionInfo.section ?? "-";
+                        string part = sectionInfo.part ?? "-";
+
+                        int familyID = e.Id.IntegerValue;
+
+                        foreach (var sub in subEquipment)
+                        {
+                            if (ShouldInclude(e, familyType, sub))
                             {
-                                familyType = e.Document.GetElement(typeId);
-                            }
-
-                            string familyUcode = familyType?.LookupParameter("BS_Код изделия")?.AsString()?.Trim() ?? "-";
-                            string familyModification = familyType?.LookupParameter("MEP_Модификация")?.AsString()?.Trim() ?? "-";
-
-                            string familySizeDirty = familyType?.LookupParameter("MEP_Диаметр 1")?.AsValueString()?.Trim() ?? "-";
-                            string familySize = Regex.Match(familySizeDirty, @"[\d\.]+").Value;
-
-                            int familyID = e.Id.IntegerValue;
-                            string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
-
-                            //string section = ParameterProcessor.GetSection(e, doc);
-                            //string part = ParameterProcessor.GetPart(e, doc);
-
-
-                            //if (string.IsNullOrEmpty(familyUcode) || familyUcode == "-")
-                            //    continue;
-                           
-                            command.Parameters["@ucode"].Value = familyUcode;
-                            command.Parameters["@modification"].Value = familyModification;
-
-                            using (MySqlDataReader reader = command.ExecuteReader())
-                            {
-                                while (reader.Read())
+                                result.Add(new FamilyInfo
                                 {
-                                    bool access = true;
-
-                                    //уточнение размера 
-                                    string dbSizeValue = reader.IsDBNull(3) ? "" : reader.GetString(3);
-                                    string finalSize;
-                                    if (!string.IsNullOrEmpty(dbSizeValue) &&
-                                        dbSizeValue.Trim().Equals("asparent", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        finalSize = familySize;
-                                    }
-                                    else
-                                    {
-                                        finalSize = dbSizeValue;
-                                    }
-                                    //уточнение размера 
-
-
-                                    // триггер
-                                    // param{bool:Встраиваемый шкаф:true}
-                                    // param{bool:Пристраиваемый шкаф:true}
-                                    // param{num:MEP_Диаметр 1:15}
-
-                                    string instructionsDurty = reader.IsDBNull(5) ? "" : reader.GetString(5);
-                                    string instructionParameter = "";
-                                    string instructionTypeParameter = "";
-                                    string instructionValue = "";
-                                    string[] i;
-                                    var familyFindParam = "";
-                                    //bool familyFindBoolParam = false;
-
-                                    if (instructionsDurty.Contains("param"))
-                                    {
-                                        i = instructionsDurty.Split(':');
-                                        instructionParameter = i[1];
-                                        instructionTypeParameter = i[0].Replace("param{", "");
-                                        instructionValue = i[2].Replace("{", "").Replace("}", "");
-
-                                        switch (instructionTypeParameter)
-                                        {
-                                            case "num":
-                                                var tempValue1 = e?.LookupParameter(instructionParameter)?
-                                                           .AsString()
-                                                           ?? familyType?
-                                                           .LookupParameter(instructionParameter)?
-                                                           .AsString();
-                                                if (string.IsNullOrEmpty(familyFindParam))
-                                                {
-                                                    tempValue1 = e?.LookupParameter(instructionParameter)?
-                                                                   .AsValueString()
-                                                                   ?? familyType?
-                                                                   .LookupParameter(instructionParameter)?
-                                                                   .AsValueString();
-                                                }
-                                                familyFindParam = tempValue1?.Replace(" ", "")?.Replace("мм", "") ?? "";
-                                                break;
-                                            case "bool":
-
-                                                var tempValue2 = e?.LookupParameter(instructionParameter)?.AsInteger()
-                                                           ?? familyType?.LookupParameter(instructionParameter)?.AsInteger();                                             
-                                                if (tempValue2 == 1)
-                                                {
-                                                    familyFindParam = "true";
-                                                }                                                                                               
-                                                else { familyFindParam = "fasle"; }
-                                                    
-                                                break;
-                                        }
-                                    }
-                                    //else continue;
-
-                                    //секция 
-                                    string section = ParameterProcessor.GetSection(e, doc);
-                                    string part = ParameterProcessor.GetPart(e, doc);
-
-                                    //секция 
-
-
-
-                                    // триггер
-
-
-
-                                    //получение разрешения заносить параметр в коллекцию 
-                                    if (instructionsDurty == "нет" || familyFindParam == instructionValue)//вот тут булеву не ловит 
-                                    {
-                                        access = true;
-                                    }
-                                    else { access = false; }
-                                    
-
-
-
-
-                                    //familyEquipment.Add(new FamilyInfo
-                                    //    {
-                                    //        FamilyName = "комплектация тест",
-                                    //        Ucode = reader.IsDBNull(0) ? "" : reader.GetString(0),
-                                    //        Modification = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                                    //        WorkPressure = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                                    //        Size = finalSize,
-                                    //        Amount = reader.IsDBNull(4) ? "" : reader.GetString(4),
-                                    //        SystemName = systemName,
-                                    //        ID = familyID
-                                    //    });
-
-
-
-                                    if (access)
-                                    {
-                                        familyEquipment.Add(new FamilyInfo
-                                        {
-                                            FamilyName = "комплектация тест",
-                                            Ucode = reader.IsDBNull(0) ? "" : reader.GetString(0),
-                                            Modification = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                                            WorkPressure = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                                            Size = finalSize,
-                                            Amount = reader.IsDBNull(4) ? "" : reader.GetString(4),
-                                            SystemName = systemName,
-                                            ID = familyID,
-                                            Section = section,
-                                            Part = part
-                                        });
-                                    }
-                                    else continue;
-                                }
+                                    FamilyName = "комплектация тест",
+                                    Ucode = sub.Ucode ?? "",
+                                    Modification = sub.Modification ?? "",
+                                    WorkPressure = sub.WorkPressure ?? "",
+                                    Size = GetFinalSize(sub.Size, familySize),
+                                    Amount = sub.Amount ?? "-",
+                                    SystemName = systemName,
+                                    ID = familyID,
+                                    Section = section,
+                                    Part = part
+                                });
                             }
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Ошибка обработки элемента: {ex.Message}");
+                    }
                 }
-                return familyEquipment;
             }
-            catch (NullReferenceException ex)
+            catch (Exception ex)
             {
-                TaskDialog.Show("Ошибка",
-        $"Message: {ex.Message}\nStackTrace: {ex.StackTrace}");
-                return new List<FamilyInfo>();
+                TaskDialog.Show("Ошибка", $"Ошибка в EquipmentDetector: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        private static string ExtractSize(Element familyType)
+        {
+            if (familyType == null) return "-";
+
+            string sizeDirty = familyType.LookupParameter("MEP_Диаметр 1")?.AsValueString()?.Trim() ?? "-";
+            Match match = Regex.Match(sizeDirty, @"[\d\.]+");
+            return match.Success ? match.Value : "-";
+        }
+
+        private static string GetFinalSize(string dbSize, string familySize)
+        {
+            if (!string.IsNullOrEmpty(dbSize) &&
+                dbSize.Trim().Equals("asparent", StringComparison.OrdinalIgnoreCase))
+            {
+                return familySize;
+            }
+            return dbSize ?? "-";
+        }
+
+        private static bool ShouldInclude(Element element, Element familyType, DatabaseCache.SubEquipment sub)
+        {
+            if (string.IsNullOrEmpty(sub.TriggerInstruction) || sub.TriggerInstruction == "нет")
+                return true;
+
+            if (!sub.TriggerInstruction.Contains("param"))
+                return false;
+
+            try
+            {
+                var (paramType, paramName, expectedValue) = ParseTrigger(sub.TriggerInstruction);
+                string actualValue = GetParameterValue(element, familyType, paramType, paramName);
+
+                return actualValue == expectedValue;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static (string type, string name, string value) ParseTrigger(string trigger)
+        {
+            string[] parts = trigger.Split(':');
+            if (parts.Length < 3)
+                return ("", "", "");
+
+            return (
+                parts[0].Replace("param{", ""),
+                parts[1],
+                parts[2].Replace("{", "").Replace("}", "")
+            );
+        }
+
+        private static string GetParameterValue(Element element, Element familyType, string paramType, string paramName)
+        {
+            try
+            {
+                switch (paramType)
+                {
+                    case "num":
+                        string val = element?.LookupParameter(paramName)?.AsString()
+                                   ?? familyType?.LookupParameter(paramName)?.AsString();
+                        if (string.IsNullOrEmpty(val))
+                        {
+                            val = element?.LookupParameter(paramName)?.AsValueString()
+                                ?? familyType?.LookupParameter(paramName)?.AsValueString();
+                        }
+                        return val?.Replace(" ", "")?.Replace("мм", "") ?? "";
+
+                    case "bool":
+                        int? boolVal = element?.LookupParameter(paramName)?.AsInteger()
+                                     ?? familyType?.LookupParameter(paramName)?.AsInteger();
+                        return boolVal == 1 ? "true" : "false";
+
+                    default:
+                        return "";
+                }
+            }
+            catch
+            {
+                return "";
             }
         }
     }

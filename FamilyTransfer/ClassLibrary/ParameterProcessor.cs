@@ -1,314 +1,406 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Mechanical;
 using Autodesk.Revit.DB.Plumbing;
-using Autodesk.Revit.DB;
-using MySql.Data.MySqlClient;
-using System.Security.Cryptography;
-using System.Net.Sockets;
 
 namespace RevitToMySQL
 {
     public static class ParameterProcessor
     {
-        public static List<FamilyInfo> GetParameters(List<Element> elements, Document doc)
+        public static List<FamilyInfo> GetParameters(List<Element> elements, Document doc,
+                                                      DatabaseCache dbCache, SectionCache sectionCache)
         {
-            var result = new List<FamilyInfo>();
+            if (elements == null || !elements.Any())
+                return new List<FamilyInfo>();
+
+            var result = new List<FamilyInfo>(elements.Count);
 
             foreach (var e in elements)
             {
-                string familyname = e.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM)?.AsValueString() ?? "Не указано";
-
-                // ---
-                ElementId typeId = e.GetTypeId();
-                Element familyType = null;
-                if (typeId != ElementId.InvalidElementId)
+                try
                 {
-                    familyType = e.Document.GetElement(typeId);
+                    Element familyType = GetFamilyType(e);
+
+                    string familyName = GetFamilyName(e) ?? "Не указано";
+                    string ucode = GetUcode(familyType) ?? "-";
+                    string funcGroup = GetFuncGroup(familyType) ?? "-";
+                    string funcType = GetFuncType(familyType) ?? "-";
+                    string modification = GetModification(e) ?? "-";
+                    string workPressure = GetWorkPressure(e, familyType) ?? "-";
+                    string ductEI = GetDuctEI(e) ?? "-";
+                    string systemName = GetSystemName(e) ?? "-";
+                    string size = GetElementSize(e) ?? "-";
+                    string amount = GetElementAmount(e) ?? "-";
+
+                    var sectionInfo = sectionCache.GetSectionAndPartForElement(e);
+
+                    int sortingCode = GetSortingCode(e, systemName, dbCache);
+                    string order = MakeOrder(funcGroup, funcType, dbCache) ?? "-";
+
+                    result.Add(new FamilyInfo
+                    {
+                        FamilyName = familyName,
+                        Ucode = ucode,
+                        FuncGroup = funcGroup,
+                        FuncTypes = funcType,
+                        Modification = modification,
+                        WorkPressure = workPressure,
+                        DuctEI = ductEI,
+                        Order = order,
+                        Size = size,
+                        SystemName = systemName,
+                        Amount = amount,
+                        Section = sectionInfo.section ?? "-",
+                        Part = sectionInfo.part ?? "-",
+                        ID = e.Id.IntegerValue,
+                        SortingCode = sortingCode
+                    });
                 }
-                string bscode = familyType?.LookupParameter("BS_Код изделия")?.AsString() ?? "-";
-                // ---
-
-                string funcgroup = familyType?.LookupParameter("MEP_Функциональная группа")?.AsString() ?? "-";
-                string functype = familyType?.LookupParameter("MEP_Функциональный тип")?.AsString() ?? "-";
-                string modification = e.LookupParameter("MEP_Модификация")?.AsString() ?? "-";
-                string workpressure = GetWorkPressure(e);
-                string ductEI = e.LookupParameter("Огнестойкость")?.AsValueString() ?? "-";
-                string order = MakeOrder(e);
-                string size = GetElementSize(e);
-                //string size = "-";
-                string systemname = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
-                string amount = GetElementAmount(e);
-                string section = GetSection(e, doc);
-                string part = GetPart(e, doc);
-                int sorting = GetSortingCode(e);
-
-                result.Add(new FamilyInfo
+                catch (Exception ex)
                 {
-                    FamilyName = familyname,
-                    Ucode = bscode,
-                    FuncGroup = funcgroup,
-                    FuncTypes = functype,
-                    Modification = modification,
-                    WorkPressure = workpressure,
-                    DuctEI = ductEI,
-                    Order = order,
-                    Size = size,
-                    SystemName = systemname,
-                    Amount = amount,
-                    Section = section,
-                    Part = part,
-                    ID = e.Id.IntegerValue,
-                    SortingCode = sorting 
-
-                });
+                    System.Diagnostics.Debug.WriteLine($"Ошибка обработки элемента {e.Id}: {ex.Message}");
+                }
             }
+
             return result;
         }
 
-        public static string GetSection(Element element, Document doc)
+        private static Element GetFamilyType(Element element)
         {
-            var (section, _) = SectionHelper.GetBuildingSectionForElement(doc, element);
-            return section;
+            if (element == null) return null;
+
+            ElementId typeId = element.GetTypeId();
+            if (typeId != null && typeId != ElementId.InvalidElementId)
+            {
+                return element.Document.GetElement(typeId);
+            }
+            return null;
         }
 
-        public static string GetPart(Element element, Document doc)
+        private static string GetFamilyName(Element element)
         {
-            var (_, part) = SectionHelper.GetBuildingSectionForElement(doc, element);
-            return part;
+            if (element == null) return "Не указано";
+
+            Parameter param = element.get_Parameter(BuiltInParameter.ELEM_FAMILY_PARAM);
+            if (param != null && param.HasValue)
+            {
+                return param.AsValueString() ?? "Не указано";
+            }
+            return "Не указано";
         }
 
-        private static string GetElementSize(Element e)
+        private static string GetUcode(Element familyType)
         {
-            //воздуховоды (круглые и прямоугольные )  AxH(D)
-            //в mysql добавить столбцы для гирины/высоты 
-            double ductWidth;
-            double ductHieght = 0;
-            string ductSizeResult;
+            if (familyType == null) return "-";
 
-            if (e is Pipe)
+            Parameter param = familyType.LookupParameter("BS_Код изделия");
+            if (param != null && param.HasValue)
             {
-                return e.get_Parameter(BuiltInParameter.RBS_CALCULATED_SIZE)?.AsString() ?? "-";
-            }
-
-            else if (e is Duct)
-            {
-                if (e.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM)?.AsDouble() > 0)
-                {
-                    return e.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM)?.AsValueString() ?? "-";
-                }
-                else
-                {
-                    ductHieght = e.get_Parameter(BuiltInParameter.RBS_CURVE_HEIGHT_PARAM).AsDouble() * 0.3048;
-                    ductWidth = e.get_Parameter(BuiltInParameter.RBS_CURVE_HEIGHT_PARAM).AsDouble() * 0.3048;
-                    ductSizeResult = $"{ductHieght} + {ductWidth}";
-                    return ductSizeResult;
-
-                }
-            }
-            else if (e is FamilyInstance)
-            {
-                return e.get_Parameter(BuiltInParameter.RBS_CALCULATED_SIZE)?.AsString() ?? "-";
-            }
-            else if (e is DuctInsulation || e is PipeInsulation)
-            {
-                return e.get_Parameter(BuiltInParameter.RBS_INSULATION_THICKNESS_FOR_DUCT)?.AsString() ?? "-";
+                return param.AsString()?.Trim() ?? "-";
             }
             return "-";
         }
-        private static string GetElementAmount(Element e)
+
+        private static string GetFuncGroup(Element familyType)
         {
-            if (e is Pipe || e is Duct)
+            if (familyType == null) return "-";
+
+            Parameter param = familyType.LookupParameter("MEP_Функциональная группа");
+            if (param != null && param.HasValue)
             {
-                Parameter lengthParam = e.get_Parameter(BuiltInParameter.CURVE_ELEM_LENGTH);
-
-                if (lengthParam == null || !lengthParam.HasValue || lengthParam.AsDouble() == 0)
-                    return "-";
-                double lengthInFeet = lengthParam.AsDouble();
-                double lengthInMeters = UnitUtils.ConvertFromInternalUnits(lengthInFeet, DisplayUnitType.DUT_METERS);
-                return lengthInMeters.ToString("F2");
+                return param.AsString()?.Trim() ?? "-";
             }
-            else if (e is PipeInsulation || e is DuctInsulation)
-            {
-                Parameter areaParam = e.get_Parameter(BuiltInParameter.RBS_CURVE_SURFACE_AREA);
-
-                if (areaParam?.HasValue != true)
-                    return "-";
-
-                double areaInFeet = areaParam.AsDouble();
-
-                if (areaInFeet == 0)
-                    return "-";
-
-                double areaInSquaremeters = UnitUtils.ConvertFromInternalUnits(areaInFeet, DisplayUnitType.DUT_SQUARE_METERS);
-                return areaInSquaremeters.ToString("F2");
-            }
-            return "1";  
+            return "-";
         }
 
-        private static string GetWorkPressure(Element element)
+        private static string GetFuncType(Element familyType)
         {
-            string parameterName = "MEP_Давление номинальное (текст)";
-            Parameter instanceParam = element.LookupParameter(parameterName);
-            if (instanceParam != null && instanceParam.HasValue)
+            if (familyType == null) return "-";
+
+            Parameter param = familyType.LookupParameter("MEP_Функциональный тип");
+            if (param != null && param.HasValue)
             {
-                string value = instanceParam.AsString();
-                if (!string.IsNullOrEmpty(value) && value != "-")
-                    return value;
+                return param.AsString()?.Trim() ?? "-";
             }
-            ElementId typeId = element.GetTypeId();
-            if (typeId != ElementId.InvalidElementId)
+            return "-";
+        }
+
+        private static string GetModification(Element element)
+        {
+            if (element == null) return "-";
+
+            Parameter param = element.LookupParameter("MEP_Модификация");
+            if (param != null && param.HasValue)
             {
-                Element familyType = element.Document.GetElement(typeId);
-                Parameter typeParam = familyType?.LookupParameter(parameterName);
-                if (typeParam != null && typeParam.HasValue)
+                return param.AsString()?.Trim() ?? "-";
+            }
+            return "-";
+        }
+
+        private static string GetSystemName(Element element)
+        {
+            if (element == null) return "-";
+
+            Parameter param = element.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM);
+            if (param != null && param.HasValue)
+            {
+                return param.AsString()?.Trim() ?? "-";
+            }
+            return "-";
+        }
+
+        private static string GetDuctEI(Element element)
+        {
+            if (element == null) return "-";
+
+            Parameter param = element.LookupParameter("Огнестойкость");
+            if (param != null && param.HasValue)
+            {
+                return param.AsValueString()?.Trim() ?? "-";
+            }
+            return "-";
+        }
+
+        private static string GetWorkPressure(Element element, Element familyType)
+        {
+            const string parameterName = "MEP_Давление номинальное (текст)";
+
+            if (element != null)
+            {
+                Parameter instanceParam = element.LookupParameter(parameterName);
+                if (instanceParam != null && instanceParam.HasValue)
                 {
-                    string value = typeParam.AsString();
+                    string value = instanceParam.AsString()?.Trim();
                     if (!string.IsNullOrEmpty(value) && value != "-")
                         return value;
                 }
             }
+
+            if (familyType != null)
+            {
+                Parameter typeParam = familyType.LookupParameter(parameterName);
+                if (typeParam != null && typeParam.HasValue)
+                {
+                    string value = typeParam.AsString()?.Trim();
+                    if (!string.IsNullOrEmpty(value) && value != "-")
+                        return value;
+                }
+            }
+
             return "-";
         }
 
-        private static string Systemtransformer(string origsystem)
+        private static string GetElementSize(Element e)
         {
-            string final = origsystem;
-            string[] parts = origsystem.Split('.');
+            if (e == null) return "-";
 
-            if (parts.Length >= 2)
+            try
             {
-                string firstpart = parts[0];
-                char lastchar = origsystem.LastOrDefault();
-
-                if (lastchar == 'а' || lastchar == 'a')
+                if (e is Pipe)
                 {
-                    final = firstpart + "а";
+                    Parameter param = e.get_Parameter(BuiltInParameter.RBS_CALCULATED_SIZE);
+                    return param?.AsString() ?? "-";
                 }
-                else { final = firstpart; }
 
+                if (e is Duct)
+                {
+                    Parameter diameterParam = e.get_Parameter(BuiltInParameter.RBS_CURVE_DIAMETER_PARAM);
+                    if (diameterParam != null && diameterParam.HasValue && diameterParam.AsDouble() > 0)
+                    {
+                        return diameterParam.AsValueString() ?? "-";
+                    }
+
+                    Parameter heightParam = e.get_Parameter(BuiltInParameter.RBS_CURVE_HEIGHT_PARAM);
+                    Parameter widthParam = e.get_Parameter(BuiltInParameter.RBS_CURVE_WIDTH_PARAM);
+
+                    if (heightParam != null && widthParam != null &&
+                        heightParam.HasValue && widthParam.HasValue)
+                    {
+                        double heightInMeters = UnitUtils.ConvertFromInternalUnits(
+                            heightParam.AsDouble(), DisplayUnitType.DUT_METERS);
+                        double widthInMeters = UnitUtils.ConvertFromInternalUnits(
+                            widthParam.AsDouble(), DisplayUnitType.DUT_METERS);
+
+                        return $"{heightInMeters:F0}x{widthInMeters:F0}";
+                    }
+
+                    return "-";
+                }
+
+                if (e is FamilyInstance)
+                {
+                    Parameter param = e.get_Parameter(BuiltInParameter.RBS_CALCULATED_SIZE);
+                    return param?.AsString() ?? "-";
+                }
+
+                if (e is DuctInsulation || e is PipeInsulation)
+                {
+                    Parameter param = e.get_Parameter(BuiltInParameter.RBS_INSULATION_THICKNESS_FOR_DUCT);
+                    return param?.AsValueString() ?? "-";
+                }
             }
-            else
+            catch (Exception ex)
             {
-                final = origsystem;
+                System.Diagnostics.Debug.WriteLine($"Ошибка получения размера: {ex.Message}");
             }
-            return final;
+
+            return "-";
         }
 
-
-        private static int GetSortingCode(Element element)
+        private static string GetElementAmount(Element e)
         {
-            string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDCLC");
-            string sysPipeName = element.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
-            string sysDuctName = element.get_Parameter(BuiltInParameter.RBS_DUCT_SYSTEM_TYPE_PARAM)?.AsValueString() ?? "-";
+            if (e == null) return "-";
 
-            string final = Systemtransformer(sysDuctName);            
-
-            if (sysDuctName.Contains("П") ||
-                sysDuctName.Contains("В") ||
-                sysDuctName.Contains("ДП") ||
-                sysDuctName.Contains("ДВ") ||
-                sysDuctName.Contains("ПЕ") ||
-                sysDuctName.Contains("ВЕ") ||
-                sysDuctName.Contains("ДПЕ"))
+            try
             {
-                using (MySqlConnection connection = new MySqlConnection(connectionString))
+                if (e is Pipe || e is Duct)
                 {
-                    connection.Open();
+                    Parameter lengthParam = e.get_Parameter(BuiltInParameter.CURVE_ELEM_LENGTH);
 
-                    string groupQuery = @"SELECT sorting_code 
-                                        FROM default_register_OV2 
-                                        WHERE family_system_name REGEXP CONCAT('(^|, )', @system_name, '(, |$)')";
+                    if (lengthParam == null || !lengthParam.HasValue)
+                        return "-";
 
-                    using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))
-                    {
-                        groupCommand.Parameters.AddWithValue("@system_name", final.Replace("'", "''"));
-                        object result = groupCommand.ExecuteScalar();
+                    double lengthInFeet = lengthParam.AsDouble();
+                    if (Math.Abs(lengthInFeet) < 1e-6)
+                        return "-";
 
-                        if (result != null && result != DBNull.Value)
-                        {
-                            return Convert.ToInt32(result);  
-                        } 
-                        else
-                        {
-                            return 0;
-                        }
-                    }
+                    double lengthInMeters = UnitUtils.ConvertFromInternalUnits(
+                        lengthInFeet, DisplayUnitType.DUT_METERS);
+                    return lengthInMeters.ToString("F2");
+                }
+
+                if (e is PipeInsulation || e is DuctInsulation)
+                {
+                    Parameter areaParam = e.get_Parameter(BuiltInParameter.RBS_CURVE_SURFACE_AREA);
+
+                    if (areaParam == null || !areaParam.HasValue)
+                        return "-";
+
+                    double areaInFeet = areaParam.AsDouble();
+
+                    if (Math.Abs(areaInFeet) < 1e-6)
+                        return "-";
+
+                    double areaInSquareMeters = UnitUtils.ConvertFromInternalUnits(
+                        areaInFeet, DisplayUnitType.DUT_SQUARE_METERS);
+                    return areaInSquareMeters.ToString("F2");
+                }
+
+                return "1";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка получения количества: {ex.Message}");
+                return "-";
+            }
+        }
+
+        private static string MakeOrder(string funcGroup, string funcType, DatabaseCache dbCache)
+        {
+            if (dbCache == null) return "-";
+
+            try
+            {
+                int? groupOrder = dbCache.GetFuncGroupOrder(funcGroup ?? "");
+                int? typeOrder = dbCache.GetFuncTypeOrder(funcType ?? "");
+
+                string groupOrderStr = groupOrder.HasValue ? groupOrder.Value.ToString("D2") : "00";
+                string typeOrderStr = typeOrder.HasValue ? typeOrder.Value.ToString("D2") : "00";
+
+                return $"{groupOrderStr}{typeOrderStr}00";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка создания порядка: {ex.Message}");
+                return "-";
+            }
+        }
+
+        private static int GetSortingCode(Element element, string systemName, DatabaseCache dbCache)
+        {
+            if (element == null || dbCache == null) return 0;
+
+            try
+            {
+                Parameter ductParam = element.get_Parameter(BuiltInParameter.RBS_DUCT_SYSTEM_TYPE_PARAM);
+                string sysDuctName = ductParam?.AsValueString() ?? "";
+
+                if (!string.IsNullOrEmpty(sysDuctName) && IsDuctSystem(sysDuctName))
+                {
+                    string processedName = SystemTransformer(sysDuctName);
+                    int? code = dbCache.GetSortingCodeOV2(processedName);
+                    if (code.HasValue)
+                        return code.Value;
+                }
+
+                if (!string.IsNullOrEmpty(systemName) &&
+                    (systemName.Contains("Т") || systemName.Contains("T")))
+                {
+                    int? code = dbCache.GetSortingCodeOV1(systemName);
+                    if (code.HasValue)
+                        return code.Value;
                 }
             }
-            if (sysPipeName.Contains("Т"))
-            {                using (MySqlConnection connection = new MySqlConnection(connectionString))
-                {
-                    connection.Open();
-
-                    string groupQuery = @"SELECT sorting_code 
-                                        FROM default_register_OV1 
-                                        WHERE family_system_name REGEXP CONCAT('(^|, )', @system_name, '(, |$)')";
-
-                    using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))
-                    {
-                        groupCommand.Parameters.AddWithValue("@system_name", sysPipeName.Replace("'", "''"));
-                        object result = groupCommand.ExecuteScalar();
-
-                        if (result != null && result != DBNull.Value)
-                        {      
-                            return Convert.ToInt32(result);
-                        }
-                        else
-                        {
-                            return 0;
-                        }
-                    }
-                }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка получения кода сортировки: {ex.Message}");
             }
+
             return 0;
-        } 
+        }
 
-        private static string MakeOrder(Element element)
+        private static bool IsDuctSystem(string systemName)
         {
-            ElementId typeId = element.GetTypeId();
-            Element familyType = null;
-            if (typeId != ElementId.InvalidElementId)
+            if (string.IsNullOrEmpty(systemName))
+                return false;
+
+            return systemName.Contains("П") ||
+                   systemName.Contains("В") ||
+                   systemName.Contains("ДП") ||
+                   systemName.Contains("ДВ") ||
+                   systemName.Contains("ПЕ") ||
+                   systemName.Contains("ВЕ") ||
+                   systemName.Contains("ДПЕ");
+        }
+
+        private static string SystemTransformer(string origSystem)
+        {
+            if (string.IsNullOrEmpty(origSystem))
+                return origSystem ?? "";
+
+            string[] parts = origSystem.Split('.');
+            if (parts.Length >= 2)
             {
-                familyType = element.Document.GetElement(typeId);
-            }
-            string funcgroup = familyType?.LookupParameter("MEP_Функциональная группа")?.AsString() ?? "-";
-            string functype = familyType?.LookupParameter("MEP_Функциональный тип")?.AsString() ?? "-";
-
-            string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDEQU");
-
-
-
-
-            using (MySqlConnection connection = new MySqlConnection(connectionString))
-            {
-                connection.Open();
-
-                string groupQuery = "SELECT funcgroup_order FROM Equip_funcgroups WHERE funcgroup_name = @funcgroupName";
-                string groupOrder = "-";
-
-
-                using (MySqlCommand groupCommand = new MySqlCommand(groupQuery, connection))  
+                string firstPart = parts[0] ?? "";
+                if (origSystem.EndsWith("а") || origSystem.EndsWith("a"))
                 {
-                    groupCommand.Parameters.AddWithValue("@funcgroupName", funcgroup);
-                    object groupResult = groupCommand.ExecuteScalar();
-                    groupOrder = groupResult?.ToString() ?? "-";
+                    return firstPart + "а";
                 }
-                 
-                string typeQuery = "SELECT functype_order FROM Equip_functypes WHERE functype_name = @functypeName";
-                string typeOrder = "-";
-                
-                using (MySqlCommand typeCommand = new MySqlCommand(typeQuery, connection))
-                {
-                    typeCommand.Parameters.AddWithValue("@functypeName", functype);
-                    object typeResult = typeCommand.ExecuteScalar();
-                    typeOrder = typeResult?.ToString() ?? "-";
-                }
-                return $"{groupOrder}{typeOrder}00";
+                return firstPart;
             }
+
+            return origSystem;
+        }
+
+        public static string GetSection(Element element, Document doc)
+        {
+            if (element == null || doc == null) return "-";
+
+            var sectionCache = new SectionCache(doc);
+            var sectionInfo = sectionCache.GetSectionAndPartForElement(element);
+            return sectionInfo.section ?? "-";
+        }
+
+        public static string GetPart(Element element, Document doc)
+        {
+            if (element == null || doc == null) return "-";
+
+            var sectionCache = new SectionCache(doc);
+            var sectionInfo = sectionCache.GetSectionAndPartForElement(element);
+            return sectionInfo.part ?? "-";
         }
     }
 }

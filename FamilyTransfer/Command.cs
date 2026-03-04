@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Mechanical;
-using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.UI;
 
 namespace RevitToMySQL
@@ -17,153 +14,84 @@ namespace RevitToMySQL
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;
             Document doc = uiDoc.Document;
 
-            TaskDialog.Show("Программа запущена", "Программа запущена122");
-
             try
             {
-                //---- БЛОК 0. Получение связанных моделей ОВ ---
+                TaskDialog.Show("Программа запущена", "Начало экспорта данных...");
 
-                //List<RevitLinkInstance> linksOV = new FilteredElementCollector(doc)
-                //.OfClass(typeof(RevitLinkInstance))
-                //.Cast<RevitLinkInstance>()
-                //.Where(link => System.Text.RegularExpressions.Regex.IsMatch(
-                //    link.Name, @"^\d{4}-Р-[A-Za-zА-Яа-я]{0,3}-.+-ОВ-(ОВ[1-3])_.+$"))
-                //.ToList();
+                // Шаг 1: Загружаем данные из БД
+                DatabaseCache dbCache = DatabaseCache.LoadAllData();
 
-                List<RevitLinkInstance> linksOV = new FilteredElementCollector(doc)
-               .OfClass(typeof(RevitLinkInstance))
-               .Cast<RevitLinkInstance>()
-               .ToList();
+                // Шаг 2: Строим кэш секций
+                SectionCache sectionCache = new SectionCache(doc);
 
+                // Шаг 3: Получаем связанные модели
+                List<RevitLinkInstance> links = new FilteredElementCollector(doc)
+                    .OfClass(typeof(RevitLinkInstance))
+                    .Cast<RevitLinkInstance>()
+                    .ToList();
 
-
-
-                List<Document> linksdocument = new List<Document>();
-                if (linksOV == null)
+                List<Document> linkDocuments = new List<Document>();
+                foreach (RevitLinkInstance link in links)
                 {
-                    TaskDialog.Show("Информация", "Связанные модели ОВ не найдены");
-                }
-                else
-                {
-                    foreach (RevitLinkInstance link in linksOV)
+                    Document linkDoc = link.GetLinkDocument();
+                    if (linkDoc != null)
                     {
-                        Document linkdoc = link.GetLinkDocument();
-                        if (linkdoc != null)
-                        {
-                            linksdocument.Add(linkdoc);
-                        }
+                        linkDocuments.Add(linkDoc);
                     }
-                    int number = linksOV.Count();
-                    TaskDialog.Show("Информация", $"В проекте есть {number} связанных моделей");
-
                 }
 
+                // Шаг 4: Собираем элементы из основного документа
+                List<Element> pipeElements = ElementCollectorHelper.GetPipeElements(doc);
+                List<Element> ductElements = ElementCollectorHelper.GetDuctElements(doc);
 
-
-                
-
-
-
-                //----   БЛОК 1. Получение всех элементов ----
-                var pipeElements = ElementCollectorHelper.GetPipeElements(doc);
-                //var ductElements = ElementCollectorHelper.GetDuctElements(doc);
-
-                //if (pipeElements.Count == 0 && ductElements.Count == 0)
-                //{
-                //    TaskDialog.Show("Информация", "В проекте нет элементов для экспорта.");
-                //}
-                //получение всех эелментов из связей
-
-                //foreach (Document l in linksdocument)
-                //{
-                //    var pipeElemLink = ElementCollectorHelper.GetPipeElements(l);
-                //    pipeElements.AddRange(pipeElemLink);
-
-
-                //    var ductElemLink = ElementCollectorHelper.GetDuctElements(l);
-                //}
-
-                //----   БЛОК 2. ОБРАБОТКА ПАРАМЕТРОВ ----
-                //var pipeData = ParameterProcessor.GetParameters(pipeElements, doc);
-                //var ductData = ParameterProcessor.GetParameters(ductElements, doc);
-                //var pipeDataEquip = EquipmentDetector.Equip(pipeElements, doc); // передали собранные pipeData и получили LIST<familyinfo>, комплектации семейств труб.
-                //var ductDataEquip = EquipmentDetector.Equip(ductElements); // комплектации семейств воздуховодов
-
-
-
-                //обработка элементов связей 
-                ////----   БЛОК 2.1. Сортировка  ----
-                //ductData.OrderBy(x => x.SortingCode)
-                //    .ThenBy(x => x.SystemName)
-                //    .ThenBy(x => x.Order);
-                //pipeData.OrderBy(x => x.SortingCode)
-                //    .ThenBy(x => x.SystemName)
-                //    .ThenBy(x => x.Order);
-
-
-
-                //----   БЛОК 3. ЭКСПОРТ В MySQL ----
-                try
+                // Шаг 5: Собираем элементы из связанных моделей
+                foreach (Document linkDoc in linkDocuments)
                 {
-                    string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("testovk");
-                    //MySqlExporter.ExportToMySQL(pipeData, "pipetest", connectionString);
-                    //MySqlExporter.ExportToMySQL(ductData, "ducttest", connectionString);
-
-                    //MySqlExporter.ExportToMySQL(pipeDataEquip, "pipetest", connectionString); //вот тут  передача LISTa коплектаций
-                    //MySqlExporter.ExportToMySQL(ductDataEquip, "ducttest", connectionString); //вот тут  передача LISTa коплектаций
-
-
-                    //TaskDialog.Show("Успех", $"Экспортировано элементов: {pipeElements.Count + ductElements.Count}");
+                    try
+                    {
+                        pipeElements.AddRange(ElementCollectorHelper.GetPipeElements(linkDoc));
+                        ductElements.AddRange(ElementCollectorHelper.GetDuctElements(linkDoc));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Ошибка обработки связанной модели: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    TaskDialog.Show("Ошибка", $"Не удалось экспортировать данные: {ex.Message}");
-                    return Result.Failed;
-                }
+
+                // Шаг 6: Обрабатываем параметры
+                List<FamilyInfo> pipeData = ParameterProcessor.GetParameters(pipeElements, doc, dbCache, sectionCache);
+                List<FamilyInfo> ductData = ParameterProcessor.GetParameters(ductElements, doc, dbCache, sectionCache);
+
+                // Шаг 7: Получаем комплектации
+                List<FamilyInfo> pipeEquipment = EquipmentDetector.Equip(pipeElements, doc, dbCache, sectionCache);
+                List<FamilyInfo> ductEquipment = EquipmentDetector.Equip(ductElements, doc, dbCache, sectionCache);
+
+                // Шаг 8: Сортировка
+                pipeData = pipeData.OrderBy(x => x.SortingCode)
+                                   .ThenBy(x => x.SystemName)
+                                   .ThenBy(x => x.Order)
+                                   .ToList();
+
+                ductData = ductData.OrderBy(x => x.SortingCode)
+                                    .ThenBy(x => x.SystemName)
+                                    .ThenBy(x => x.Order)
+                                    .ToList();
+
+                // Шаг 9: Экспорт в MySQL
+                string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("testovk");
+
+                MySqlExporter.ExportToMySQL(pipeData, "pipetest", connectionString);
+                MySqlExporter.ExportToMySQL(ductData, "ducttest", connectionString);
+                MySqlExporter.ExportToMySQL(pipeEquipment, "pipetest", connectionString);
+                MySqlExporter.ExportToMySQL(ductEquipment, "ducttest", connectionString);
+
+                TaskDialog.Show("Успех", $"Экспортировано элементов:\n" +
+                                         $"Трубы: {pipeData.Count}\n" +
+                                         $"Воздуховоды: {ductData.Count}\n" +
+                                         $"Комплектации труб: {pipeEquipment.Count}\n" +
+                                         $"Комплектации воздуховодов: {ductEquipment.Count}");
+
                 return Result.Succeeded;
-            
-
-
-
-
-
-
-
-
-
-                /* 1 Указание на сборку элементов
-                 2 Указание на подготовку параметров 
-                3 Указание на передачу параметра
-                4 Указание на Сортировку
-                5 Указание на подготовку комплектаций 
-
-                */
-
-
-
-                /* проверить 
-                 * считываение координат
-                 * дозаполнение размера 
-                 * обработка связей
-                 */
-                 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             }
             catch (Exception ex)
             {

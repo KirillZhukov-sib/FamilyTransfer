@@ -21,6 +21,7 @@ namespace RevitToMySQL
         public static string GetConnectionStringFromSecretJson(string DBName)
         {
             try
+
             {
                 string secretPath = @"\\picompany.ru\pikp\Dep\DR\DEV_DLLS\Новая папка\secrets.json";
 
