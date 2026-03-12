@@ -193,6 +193,7 @@ namespace RevitToMySQL
             return "-";
         }
 
+
         private static string GetElementSize(Element e)
         {
             if (e == null) return "-";
@@ -351,7 +352,7 @@ namespace RevitToMySQL
 
             return 0;
         }
-
+        
         private static bool IsDuctSystem(string systemName)
         {
             if (string.IsNullOrEmpty(systemName))

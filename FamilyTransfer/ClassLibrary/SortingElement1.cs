@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace FamilyTransfer.ClassLibrary
 {
-    internal class SortingElement
+    internal class SortingElement1
     {
         private static string GetSortingCode(Element element)
         {

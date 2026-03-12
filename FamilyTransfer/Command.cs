@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using System.Diagnostics;
+
 
 namespace RevitToMySQL
 {
@@ -13,18 +15,20 @@ namespace RevitToMySQL
         {
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;
             Document doc = uiDoc.Document;
-
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
             try
             {
+
                 TaskDialog.Show("Программа запущена", "Начало экспорта данных...");
 
-                // Шаг 1: Загружаем данные из БД
+                // БЛОК 1: Загрузка данные из БД MySQL
                 DatabaseCache dbCache = DatabaseCache.LoadAllData();
 
-                // Шаг 2: Строим кэш секций
+                // БЛОК 2: Кэш секций
                 SectionCache sectionCache = new SectionCache(doc);
 
-                // Шаг 3: Получаем связанные модели
+                // БЛОК 3: Получение связанные модели
                 List<RevitLinkInstance> links = new FilteredElementCollector(doc)
                     .OfClass(typeof(RevitLinkInstance))
                     .Cast<RevitLinkInstance>()
@@ -85,18 +89,25 @@ namespace RevitToMySQL
                 MySqlExporter.ExportToMySQL(pipeEquipment, "pipetest", connectionString);
                 MySqlExporter.ExportToMySQL(ductEquipment, "ducttest", connectionString);
 
+                stopwatch.Stop();
+                TimeSpan ts = stopwatch.Elapsed;
+
                 TaskDialog.Show("Успех", $"Экспортировано элементов:\n" +
                                          $"Трубы: {pipeData.Count}\n" +
                                          $"Воздуховоды: {ductData.Count}\n" +
                                          $"Комплектации труб: {pipeEquipment.Count}\n" +
-                                         $"Комплектации воздуховодов: {ductEquipment.Count}");
-
+                                         $"Комплектации воздуховодов: {ductEquipment.Count}\n" +
+                                         $"Экспорт выполнен за {ts.TotalSeconds:F2} секунд\n" +
+                                         $"Экспортировано элементов: {pipeData.Count + ductData.Count}");
+                                
                 return Result.Succeeded;
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
                 message = ex.Message;
-                TaskDialog.Show("Ошибка", $"Ошибка экспорта: {ex.Message}");
+                TaskDialog.Show("Ошибка",
+            $"Ошибка через {stopwatch.Elapsed.TotalSeconds:F2} сек: {ex.Message}");
                 return Result.Failed;
             }
         }

@@ -75,6 +75,7 @@ namespace RevitToMySQL
             return cache;
         }
 
+
         private static Dictionary<string, int> LoadDictionary(MySqlConnection connection, string query)
         {
             var dict = new Dictionary<string, int>();
@@ -148,6 +149,7 @@ namespace RevitToMySQL
             return map;
         }
 
+        //часть по сбору кэшированного ордера элементов//
         public int? GetFuncGroupOrder(string groupName)
         {
             if (string.IsNullOrEmpty(groupName) || _funcGroupOrders == null)
