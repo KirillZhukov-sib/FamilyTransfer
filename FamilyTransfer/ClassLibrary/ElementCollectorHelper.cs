@@ -14,11 +14,11 @@ namespace RevitToMySQL
             return new FilteredElementCollector(doc)
                 .WherePasses(new LogicalOrFilter(new List<ElementFilter>
                 {
-                    new ElementCategoryFilter(BuiltInCategory.OST_PipeFitting),
-                    new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory),
-                    new ElementCategoryFilter(BuiltInCategory.OST_PlumbingFixtures),
+                    //new ElementCategoryFilter(BuiltInCategory.OST_PipeFitting),
+                    //new ElementCategoryFilter(BuiltInCategory.OST_PipeAccessory),
+                   // new ElementCategoryFilter(BuiltInCategory.OST_PlumbingFixtures),
                     new ElementCategoryFilter(BuiltInCategory.OST_PipeCurves),
-                    new ElementCategoryFilter(BuiltInCategory.OST_PipeInsulations),
+                    //new ElementCategoryFilter(BuiltInCategory.OST_PipeInsulations),
                 }))
                 .WhereElementIsNotElementType()
                 .WhereElementIsViewIndependent()
@@ -38,6 +38,7 @@ namespace RevitToMySQL
                     new ElementCategoryFilter(BuiltInCategory.OST_DuctTerminal),
                     new ElementCategoryFilter(BuiltInCategory.OST_DuctAccessory),
                     new ElementCategoryFilter(BuiltInCategory.OST_DuctInsulations),
+                    new ElementCategoryFilter(BuiltInCategory.OST_DuctFitting),
                 }))
                 .WhereElementIsNotElementType()
                 .ToList();

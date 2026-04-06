@@ -28,43 +28,37 @@ namespace RevitToMySQL
 
             try
             {
-                // Загружаем данные из DBEDEQU
                 string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDEQU");
 
                 using (var connection = new MySqlConnection(connectionString))
                 {
                     connection.Open();
 
-                    // Загружаем функциональные группы
-                    cache._funcGroupOrders = LoadDictionary(connection,
+                    cache._funcGroupOrders = LoadSimpleDictionary(connection,
                         "SELECT funcgroup_name, funcgroup_order FROM Equip_funcgroups");
 
-                    // Загружаем функциональные типы
-                    cache._funcTypeOrders = LoadDictionary(connection,
+                    cache._funcTypeOrders = LoadSimpleDictionary(connection,
                         "SELECT functype_name, functype_order FROM Equip_functypes");
 
-                    // Загружаем подоборудование
                     cache._subEquipmentMap = LoadSubEquipment(connection);
                 }
 
-                // Загружаем данные из DBEDCLC
                 string sortingConnection = ConnectionStringHelper.GetConnectionStringFromSecretJson("DBEDCLC");
 
                 using (var connection = new MySqlConnection(sortingConnection))
                 {
                     connection.Open();
 
-                    cache._sortingCodesOV1 = LoadDictionary(connection,
+                    cache._sortingCodesOV1 = LoadDictionaryWithSplitting(connection,
                         "SELECT family_system_name, sorting_code FROM default_register_OV1");
 
-                    cache._sortingCodesOV2 = LoadDictionary(connection,
+                    cache._sortingCodesOV2 = LoadDictionaryWithSplitting(connection,
                         "SELECT family_system_name, sorting_code FROM default_register_OV2");
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Ошибка загрузки DatabaseCache: {ex.Message}");
-                // Инициализируем пустыми словарями
                 cache._funcGroupOrders = new Dictionary<string, int>();
                 cache._funcTypeOrders = new Dictionary<string, int>();
                 cache._sortingCodesOV1 = new Dictionary<string, int>();
@@ -75,8 +69,8 @@ namespace RevitToMySQL
             return cache;
         }
 
-
-        private static Dictionary<string, int> LoadDictionary(MySqlConnection connection, string query)
+       
+        private static Dictionary<string, int> LoadSimpleDictionary(MySqlConnection connection, string query)
         {
             var dict = new Dictionary<string, int>();
 
@@ -90,19 +84,74 @@ namespace RevitToMySQL
                         string key = reader.IsDBNull(0) ? "" : reader.GetString(0);
                         if (!string.IsNullOrEmpty(key) && !reader.IsDBNull(1))
                         {
-                            dict[key] = reader.GetInt32(1);
+                            int value = reader.GetInt32(1);
+
+                            // Просто добавляем без разбивки
+                            if (!dict.ContainsKey(key))
+                            {
+                                dict[key] = value;
+                            }
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Ошибка загрузки словаря: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Ошибка загрузки простого словаря: {ex.Message}");
             }
 
             return dict;
         }
 
+        
+        private static Dictionary<string, int> LoadDictionaryWithSplitting(MySqlConnection connection, string query)
+        {
+            var dict = new Dictionary<string, int>();
+
+            try
+            {
+                using (var cmd = new MySqlCommand(query, connection))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string rawValue = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                        if (!string.IsNullOrEmpty(rawValue) && !reader.IsDBNull(1))
+                        {
+                            int code = reader.GetInt32(1);
+
+                            if (rawValue.Contains(","))
+                            {
+                                
+                                string[] systems = rawValue.Split(new[] { ", ", "," }, StringSplitOptions.RemoveEmptyEntries);
+
+                                foreach (string system in systems)
+                                {
+                                    string trimmedSystem = system.Trim();
+                                    if (!dict.ContainsKey(trimmedSystem))
+                                    {
+                                        dict[trimmedSystem] = code;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                if (!dict.ContainsKey(rawValue))
+                                {
+                                    dict[rawValue] = code;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка загрузки словаря с разбивкой: {ex.Message}");
+            }
+
+            return dict;
+        }               
         private static Dictionary<(string, string), List<SubEquipment>> LoadSubEquipment(MySqlConnection connection)
         {
             var map = new Dictionary<(string, string), List<SubEquipment>>();
@@ -147,9 +196,7 @@ namespace RevitToMySQL
             }
 
             return map;
-        }
-
-        //часть по сбору кэшированного ордера элементов//
+        }               
         public int? GetFuncGroupOrder(string groupName)
         {
             if (string.IsNullOrEmpty(groupName) || _funcGroupOrders == null)
@@ -157,7 +204,6 @@ namespace RevitToMySQL
 
             return _funcGroupOrders.TryGetValue(groupName, out var val) ? val : (int?)null;
         }
-
         public int? GetFuncTypeOrder(string typeName)
         {
             if (string.IsNullOrEmpty(typeName) || _funcTypeOrders == null)
@@ -165,7 +211,6 @@ namespace RevitToMySQL
 
             return _funcTypeOrders.TryGetValue(typeName, out var val) ? val : (int?)null;
         }
-
         public int? GetSortingCodeOV1(string systemName)
         {
             if (string.IsNullOrEmpty(systemName) || _sortingCodesOV1 == null)
@@ -173,7 +218,6 @@ namespace RevitToMySQL
 
             return _sortingCodesOV1.TryGetValue(systemName, out var val) ? val : (int?)null;
         }
-
         public int? GetSortingCodeOV2(string systemName)
         {
             if (string.IsNullOrEmpty(systemName) || _sortingCodesOV2 == null)
@@ -181,7 +225,6 @@ namespace RevitToMySQL
 
             return _sortingCodesOV2.TryGetValue(systemName, out var val) ? val : (int?)null;
         }
-
         public List<SubEquipment> GetSubEquipment(string ucode, string modification)
         {
             if (string.IsNullOrEmpty(ucode) || string.IsNullOrEmpty(modification) || _subEquipmentMap == null)

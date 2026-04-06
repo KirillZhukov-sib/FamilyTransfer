@@ -31,7 +31,7 @@ namespace RevitToMySQL
                 RevitLinkInstance linkInstance = new FilteredElementCollector(doc)
                     .OfClass(typeof(RevitLinkInstance))
                     .Cast<RevitLinkInstance>()
-                    .FirstOrDefault(link => Regex.IsMatch(link.Name, @"^\d{4}-\d\.rvt"));
+                    .FirstOrDefault(link => Regex.IsMatch(link.Name, @"^\d{4}-\d\.rvt")); //0147-04
 
                 if (linkInstance == null) return;
 
@@ -125,6 +125,7 @@ namespace RevitToMySQL
             }
         }
 
+
         public (string section, string part) GetSectionAndPartForElement(Element element)
         {
             if (element == null) return ("-", "-");
@@ -157,6 +158,8 @@ namespace RevitToMySQL
 
             return b1.Min.X <= b2.Max.X && b1.Max.X >= b2.Min.X &&
                    b1.Min.Y <= b2.Max.Y && b1.Max.Y >= b2.Min.Y &&
+
+                   b1.Min.Z <= b2.Max.Z && b1.Max.Z >= b2.Min.Z &&
                    b1.Min.Z <= b2.Max.Z && b1.Max.Z >= b2.Min.Z;
         }
 

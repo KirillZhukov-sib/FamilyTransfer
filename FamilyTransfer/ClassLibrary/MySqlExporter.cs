@@ -37,6 +37,7 @@ namespace RevitToMySQL
             }
         }
 
+
         private static void PrepareCommandParameters(MySqlCommand command, string tableName)
         {
             // Очищаем существующие параметры
@@ -95,7 +96,7 @@ namespace RevitToMySQL
             command.Parameters["@sorting"].Value = e.SortingCode;
         }
 
-        private static string GetPipeInsertSql()
+        private static string GetPipeInsertSql() 
         {
             return @"INSERT INTO pipetest 
                     (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, WorkPressure, 

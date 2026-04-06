@@ -132,6 +132,7 @@ namespace RevitToMySQL
             );
         }
 
+
         private static string GetParameterValue(Element element, Element familyType, string paramType, string paramName)
         {
             try
