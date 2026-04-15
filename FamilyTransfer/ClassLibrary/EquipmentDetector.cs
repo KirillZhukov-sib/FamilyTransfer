@@ -10,25 +10,41 @@ namespace RevitToMySQL
     public class EquipmentDetector
     {
         public static List<FamilyInfo> Equip(List<Element> familyList, Document doc,
-                                              DatabaseCache dbCache, SectionCache sectionCache)
+                                              DatabaseCache dbCache, SectionCache sectionCache, Dictionary<int, FamilyInfo>parentsData)
         {
             if (familyList == null || !familyList.Any() || dbCache == null)
                 return new List<FamilyInfo>();
 
             var result = new List<FamilyInfo>();
-
+                        
             try
             {
                 foreach (Element e in familyList)
                 {
                     try
                     {
+
                         Element familyType = null;
                         ElementId typeId = e.GetTypeId();
                         if (typeId != ElementId.InvalidElementId)
                         {
                             familyType = e.Document.GetElement(typeId);
                         }
+                        int familyID = e.Id.IntegerValue;
+
+                        //var parent = parentsData(typeId);
+
+                        FamilyInfo pipe = new FamilyInfo();
+                        FamilyInfo pipe2 = parentsData[familyID];
+
+
+                        string order = pipe2.Order; //
+                        string sorting = pipe2.SortingCode.ToString();//
+                        string systemName = pipe2.SystemName;
+                        string section = pipe2.Section;
+                        string part = pipe2.Part;
+
+
 
                         string ucode = familyType?.LookupParameter("BS_Код изделия")?.AsString()?.Trim() ?? "-";
                         string modification = familyType?.LookupParameter("MEP_Модификация")?.AsString()?.Trim() ?? "-";
@@ -37,13 +53,12 @@ namespace RevitToMySQL
                         if (subEquipment == null || subEquipment.Count == 0) continue;
 
                         string familySize = ExtractSize(familyType);
-                        string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
+                        //string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
 
-                        var sectionInfo = sectionCache.GetSectionAndPartForElement(e);
-                        string section = sectionInfo.section ?? "-";
-                        string part = sectionInfo.part ?? "-";
+                        //var sectionInfo = sectionCache.GetSectionAndPartForElement(e);
+                        //string section = sectionInfo.section ?? "-";
+                        //string part = sectionInfo.part ?? "-";
 
-                        int familyID = e.Id.IntegerValue;
 
                         foreach (var sub in subEquipment)
                         {
@@ -60,7 +75,8 @@ namespace RevitToMySQL
                                     SystemName = systemName,
                                     ID = familyID,
                                     Section = section,
-                                    Part = part
+                                    Part = part,
+                                    Order = order
                                 });
                             }
                         }

@@ -54,7 +54,7 @@ namespace RevitToMySQL
                 */
 
 
-                
+
                 List<RevitLinkInstance> links = new FilteredElementCollector(doc)
                     .OfClass(typeof(RevitLinkInstance))
                     .Cast<RevitLinkInstance>()
@@ -69,7 +69,7 @@ namespace RevitToMySQL
                         linkDocuments.Add(linkDoc);
                     }
                 }
-                
+
 
 
 
@@ -100,9 +100,14 @@ namespace RevitToMySQL
                 // Шаг 6: Обрабатываем параметры
                 List<FamilyInfo> pipeData = ParameterProcessor.GetParameters(pipeElements, doc, dbCache, sectionCache);
                 //List<FamilyInfo> ductData = ParameterProcessor.GetParameters(ductElements, doc, dbCache, sectionCache);
+                                           
+                //------ВАРИАНТ С РОДИТЕЛЯМИ---------------
+                var pipeParentData = pipeData.ToDictionary(x => x.ID, x => x);
+                //var ductParentData = ductData.ToDictionary(x => x.ID, x => x);
+
 
                 // Шаг 7: Получаем комплектации
-                List<FamilyInfo> pipeEquipment = EquipmentDetector.Equip(pipeElements, doc, dbCache, sectionCache);
+                List<FamilyInfo> pipeEquipment = EquipmentDetector.Equip(pipeElements, doc, dbCache, sectionCache, pipeParentData);
                 //List<FamilyInfo> ductEquipment = EquipmentDetector.Equip(ductElements, doc, dbCache, sectionCache);
 
                 // Шаг 8: Сортировка
@@ -134,7 +139,7 @@ namespace RevitToMySQL
                                          //$"Комплектации воздуховодов: {ductEquipment.Count}\n"+
                                          //$"Экспортировано элементов: {pipeData.Count + ductData.Count}\n"+
                                          $"Экспорт выполнен за {ts.TotalSeconds:F2} секунд");
-                                
+
                 return Result.Succeeded;
             }
             catch (Exception ex)
