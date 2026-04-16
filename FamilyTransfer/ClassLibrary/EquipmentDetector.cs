@@ -4,19 +4,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using static RevitToMySQL.DatabaseCache;
 
 namespace RevitToMySQL
 {
     public class EquipmentDetector
     {
         public static List<FamilyInfo> Equip(List<Element> familyList, Document doc,
-                                              DatabaseCache dbCache, SectionCache sectionCache, Dictionary<int, FamilyInfo>parentsData)
-        {
+                                              DatabaseCache dbCache, SectionCache sectionCache, Dictionary<int, FamilyInfo> parentsData)
+        {            
             if (familyList == null || !familyList.Any() || dbCache == null)
                 return new List<FamilyInfo>();
 
-            var result = new List<FamilyInfo>();
-                        
+            var result = new List<FamilyInfo>();         
+
             try
             {
                 foreach (Element e in familyList)
@@ -38,14 +39,15 @@ namespace RevitToMySQL
                         FamilyInfo pipe2 = parentsData[familyID];
 
 
-                        string order = pipe2.Order; //
-                        string sorting = pipe2.SortingCode.ToString();//
+                        string parentOrder = pipe2.Order;
+
+
+
+
+                        int sorting = pipe2.SortingCode;
                         string systemName = pipe2.SystemName;
                         string section = pipe2.Section;
                         string part = pipe2.Part;
-
-
-
                         string ucode = familyType?.LookupParameter("BS_Код изделия")?.AsString()?.Trim() ?? "-";
                         string modification = familyType?.LookupParameter("MEP_Модификация")?.AsString()?.Trim() ?? "-";
 
@@ -59,9 +61,12 @@ namespace RevitToMySQL
                         //string section = sectionInfo.section ?? "-";
                         //string part = sectionInfo.part ?? "-";
 
-
                         foreach (var sub in subEquipment)
                         {
+                            string orderSub = sub.EquipOrder;                            
+                            string order = MakeOrder(e, parentsData, orderSub);
+
+
                             if (ShouldInclude(e, familyType, sub))
                             {
                                 result.Add(new FamilyInfo
@@ -76,7 +81,9 @@ namespace RevitToMySQL
                                     ID = familyID,
                                     Section = section,
                                     Part = part,
-                                    Order = order
+                                    Order= order,
+                                    SortingCode = sorting 
+                                    //Order=sub.EquipOrder                                    
                                 });
                             }
                         }
@@ -94,6 +101,27 @@ namespace RevitToMySQL
 
             return result;
         }
+        private static string MakeOrder(Element e, Dictionary<int, FamilyInfo> parentsData, string dirtyEquipOrder)
+        {
+            FamilyInfo family = parentsData[e.Id.IntegerValue];
+            string parentOrder = family.Order;
+
+
+            if (dirtyEquipOrder.All(char.IsDigit) && dirtyEquipOrder.Length == 2)
+            {
+                string finalOrder = parentOrder.Substring(0, 4) + dirtyEquipOrder;
+                return finalOrder;
+            }
+
+            if (dirtyEquipOrder.All(char.IsDigit) && dirtyEquipOrder.Length == 1)
+            {
+                string finalOrder = parentOrder.Substring(0, 4) + 0 + dirtyEquipOrder;
+                return finalOrder;
+            }
+            return "-";
+        }
+
+
 
         private static string ExtractSize(Element familyType)
         {

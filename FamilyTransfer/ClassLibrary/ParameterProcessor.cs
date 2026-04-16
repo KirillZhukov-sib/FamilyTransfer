@@ -27,7 +27,6 @@ namespace RevitToMySQL
 
                     string familyName = GetFamilyName(e) ?? "Не указано";
                     string ucode = GetUcode(e, familyType) ?? "-";
-                    //string ucode = GetUcode(familyType) ?? "-";
                     string funcGroup = GetFuncGroup(familyType) ?? "-";
                     string funcType = GetFuncType(familyType) ?? "-";
                     string modification = GetModification(e) ?? "-";
@@ -96,13 +95,12 @@ namespace RevitToMySQL
         {
             if (e == null)
                 return "-";
-            /*else*/
 
             if (e is Pipe)
             {
                 try
-                {
-                    Parameter segmentParam = e.LookupParameter("Сегмент трубы");
+                {                    
+                    Parameter segmentParam = e.get_Parameter(BuiltInParameter.RBS_PIPE_CLASS_PARAM);
                     if (segmentParam != null && segmentParam.HasValue)
                     {
                         string segmentValue = segmentParam.AsValueString();
@@ -120,7 +118,6 @@ namespace RevitToMySQL
                         }
                     }
 
-                    // Если параметр "Сегмент трубы" не найден или пустой, пробуем получить код из типа
                     if (familyType != null)
                     {
                         Parameter param = familyType.LookupParameter("BS_Код изделия");
@@ -139,19 +136,29 @@ namespace RevitToMySQL
                 }
             }
 
-            // Для всех остальных элементов
-            if (familyType != null)
+            Parameter instanceParam = e.LookupParameter("BS_Код изделия");
+            if (instanceParam != null && instanceParam.HasValue)
             {
-                Parameter param = familyType.LookupParameter("BS_Код изделия");
-                if (param != null && param.HasValue)
+                string value = instanceParam.AsString()?.Trim();
+                if (!string.IsNullOrEmpty(value) && value != "-")
+                    return value;
+            }
+            else
+            {
+                if (familyType != null)
                 {
-                    return param.AsString()?.Trim() ?? "-";
+                    Parameter typeParam = familyType.LookupParameter("BS_Код изделия");
+                    if (typeParam != null && typeParam.HasValue)
+                    {
+                        string value = typeParam.AsString()?.Trim();
+                        if (!string.IsNullOrEmpty(value) && value != "-")
+                            return value;
+                    }
                 }
             }
-
             return "-";
         }
-        
+
 
         //private static string GetUcode(Element familyType)
         //{

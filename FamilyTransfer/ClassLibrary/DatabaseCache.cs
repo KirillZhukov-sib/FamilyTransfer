@@ -20,6 +20,8 @@ namespace RevitToMySQL
             public string Size { get; set; }
             public string Amount { get; set; }
             public string TriggerInstruction { get; set; }
+            public string EquipOrder { get; set; }
+
         }
 
         public static DatabaseCache LoadAllData()
@@ -69,7 +71,7 @@ namespace RevitToMySQL
             return cache;
         }
 
-       
+
         private static Dictionary<string, int> LoadSimpleDictionary(MySqlConnection connection, string query)
         {
             var dict = new Dictionary<string, int>();
@@ -103,7 +105,7 @@ namespace RevitToMySQL
             return dict;
         }
 
-        
+
         private static Dictionary<string, int> LoadDictionaryWithSplitting(MySqlConnection connection, string query)
         {
             var dict = new Dictionary<string, int>();
@@ -122,7 +124,7 @@ namespace RevitToMySQL
 
                             if (rawValue.Contains(","))
                             {
-                                
+
                                 string[] systems = rawValue.Split(new[] { ", ", "," }, StringSplitOptions.RemoveEmptyEntries);
 
                                 foreach (string system in systems)
@@ -151,7 +153,7 @@ namespace RevitToMySQL
             }
 
             return dict;
-        }               
+        }
         private static Dictionary<(string, string), List<SubEquipment>> LoadSubEquipment(MySqlConnection connection)
         {
             var map = new Dictionary<(string, string), List<SubEquipment>>();
@@ -161,7 +163,7 @@ namespace RevitToMySQL
                 string query = @"SELECT subeq_pipes_prnt_ucode, subeq_pipes_prnt_modification,
                                         subeq_pipes_sub_ucode, subeq_pipes_sub_modification,
                                         subeq_pipes_sub_workpressure, subeq_pipes_sub_size,
-                                        subeq_pipes_formula, subeq_pipes_triggers
+                                        subeq_pipes_formula, subeq_pipes_triggers, subeq_pipes_sub_order 
                                  FROM Equip_subequipment_pipes";
 
                 using (var cmd = new MySqlCommand(query, connection))
@@ -178,12 +180,13 @@ namespace RevitToMySQL
 
                         var subEq = new SubEquipment
                         {
-                            Ucode = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                            Modification = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                            Ucode = reader.GetString(2),
+                            Modification = reader.GetString(3),
                             WorkPressure = reader.IsDBNull(4) ? "" : reader.GetString(4),
                             Size = reader.IsDBNull(5) ? null : reader.GetString(5),
                             Amount = reader.IsDBNull(6) ? null : reader.GetString(6),
-                            TriggerInstruction = reader.IsDBNull(7) ? null : reader.GetString(7)
+                            TriggerInstruction = reader.IsDBNull(7) ? null : reader.GetString(7),
+                            EquipOrder = reader.GetInt64(8).ToString()                          
                         };
 
                         map[key].Add(subEq);
@@ -196,7 +199,7 @@ namespace RevitToMySQL
             }
 
             return map;
-        }               
+        }
         public int? GetFuncGroupOrder(string groupName)
         {
             if (string.IsNullOrEmpty(groupName) || _funcGroupOrders == null)

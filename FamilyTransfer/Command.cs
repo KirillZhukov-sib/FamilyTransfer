@@ -4,6 +4,8 @@ using System.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System.Diagnostics;
+using System.IO;
+
 /*
 Текущая скорость: 
 Тест 1: 73 024 эл. за 1001 сек
@@ -51,7 +53,7 @@ namespace RevitToMySQL
                     .Cast<RevitLinkInstance>()
                     .FirstOrDefault(link => System.Text.RegularExpressions.Regex.IsMatch(
                         link.Name, @"^\d{4}-\d\.rvt"));
-                */
+                
 
 
 
@@ -69,7 +71,7 @@ namespace RevitToMySQL
                         linkDocuments.Add(linkDoc);
                     }
                 }
-
+                */
 
 
 
@@ -94,13 +96,13 @@ namespace RevitToMySQL
                         System.Diagnostics.Debug.WriteLine($"Ошибка обработки связанной модели: {ex.Message}");
                     }
                 }
+                
                 */
-
 
                 // Шаг 6: Обрабатываем параметры
                 List<FamilyInfo> pipeData = ParameterProcessor.GetParameters(pipeElements, doc, dbCache, sectionCache);
                 //List<FamilyInfo> ductData = ParameterProcessor.GetParameters(ductElements, doc, dbCache, sectionCache);
-                                           
+
                 //------ВАРИАНТ С РОДИТЕЛЯМИ---------------
                 var pipeParentData = pipeData.ToDictionary(x => x.ID, x => x);
                 //var ductParentData = ductData.ToDictionary(x => x.ID, x => x);
@@ -153,3 +155,8 @@ namespace RevitToMySQL
         }
     }
 }
+
+
+
+
+
