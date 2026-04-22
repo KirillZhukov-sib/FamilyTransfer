@@ -14,6 +14,8 @@ using System.IO;
 Тест 4: 172 581 эл. за 2472 сек 
 Тест 5: 1269 эл. за 20 сек 
 
+Тест 2.1: 46098 эл. за 612,94
+
 В инструкции указать об обязательности подгрузки КФ
 */
 
@@ -32,7 +34,7 @@ namespace RevitToMySQL
             try
             {
 
-                TaskDialog.Show("Программа запущена", "Начало экспорта данных...");
+                TaskDialog.Show("Программа запущена", "Начало экспорта данных....");
 
                 // БЛОК 1: Загрузка данные из БД MySQL
                 DatabaseCache dbCache = DatabaseCache.LoadAllData();
@@ -77,7 +79,7 @@ namespace RevitToMySQL
 
                 // Шаг 4: Собираем элементы из основного документа
                 List<Element> pipeElements = ElementCollectorHelper.GetPipeElements(doc);
-                //List<Element> ductElements = ElementCollectorHelper.GetDuctElements(doc);
+                List<Element> ductElements = ElementCollectorHelper.GetDuctElements(doc);
 
 
                 /*
@@ -103,14 +105,14 @@ namespace RevitToMySQL
                 List<FamilyInfo> pipeData = ParameterProcessor.GetParameters(pipeElements, doc, dbCache, sectionCache);
                 //List<FamilyInfo> ductData = ParameterProcessor.GetParameters(ductElements, doc, dbCache, sectionCache);
 
-                //------ВАРИАНТ С РОДИТЕЛЯМИ---------------
+                //кэш существующих родителей
                 var pipeParentData = pipeData.ToDictionary(x => x.ID, x => x);
                 //var ductParentData = ductData.ToDictionary(x => x.ID, x => x);
 
 
                 // Шаг 7: Получаем комплектации
                 List<FamilyInfo> pipeEquipment = EquipmentDetector.Equip(pipeElements, doc, dbCache, sectionCache, pipeParentData);
-                //List<FamilyInfo> ductEquipment = EquipmentDetector.Equip(ductElements, doc, dbCache, sectionCache);
+                //List<FamilyInfo> ductEquipment = EquipmentDetector.Equip(ductElements, doc, dbCache, sectionCache, ductParentData);
 
                 // Шаг 8: Сортировка
                 pipeData = pipeData.OrderBy(x => x.SortingCode)
@@ -128,18 +130,18 @@ namespace RevitToMySQL
 
                 MySqlExporter.ExportToMySQL(pipeData, "pipetest", connectionString);
                 //MySqlExporter.ExportToMySQL(ductData, "ducttest", connectionString);
-                MySqlExporter.ExportToMySQL(pipeEquipment, "pipetest", connectionString);
+               // MySqlExporter.ExportToMySQL(pipeEquipment, "pipetest", connectionString);
                 //MySqlExporter.ExportToMySQL(ductEquipment, "ducttest", connectionString);
-
+                //
                 stopwatch.Stop();
                 TimeSpan ts = stopwatch.Elapsed;
 
                 TaskDialog.Show("Успех", $"Экспортировано элементов:\n" +
-                                         $"Трубы: {pipeData.Count}\n" +
-                                         //$"Воздуховоды: {ductData.Count}\n" +
+                                         $"Элементы трубопроводых систем: {pipeData.Count}\n" +
+                                         //$"Элементы воздуховодных систем: {ductData.Count}\n" +
                                          $"Комплектации труб: {pipeEquipment.Count}\n" +
-                                         //$"Комплектации воздуховодов: {ductEquipment.Count}\n"+
-                                         //$"Экспортировано элементов: {pipeData.Count + ductData.Count}\n"+
+                                         //$"Комплектации воздуховодов: {ductEquipment.Count}\n" +
+                                         //$"Всего экспортировано элементов: {pipeData.Count + ductData.Count}\n" +
                                          $"Экспорт выполнен за {ts.TotalSeconds:F2} секунд");
 
                 return Result.Succeeded;

@@ -25,6 +25,9 @@ namespace RevitToMySQL
             {
                 string secretPath = @"\\picompany.ru\pikp\Dep\DR\DEV_DLLS\Новая папка\secrets.json";
 
+
+
+
                 if (!File.Exists(secretPath))
                     throw new FileNotFoundException("Файл secrets.json не найден по указанному пути");
 

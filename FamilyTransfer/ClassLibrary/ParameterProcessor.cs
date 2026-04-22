@@ -18,17 +18,17 @@ namespace RevitToMySQL
                 return new List<FamilyInfo>();
 
             var result = new List<FamilyInfo>(elements.Count);
-
-            foreach (var e in elements)
+            try
             {
-                try
+                foreach (var e in elements)
                 {
+
                     Element familyType = GetFamilyType(e);
 
                     string familyName = GetFamilyName(e) ?? "Не указано";
                     string ucode = GetUcode(e, familyType) ?? "-";
-                    string funcGroup = GetFuncGroup(familyType) ?? "-";
-                    string funcType = GetFuncType(familyType) ?? "-";
+                    string funcGroup = GetFuncGroup(e, familyType) ?? "-";
+                    string funcType = GetFuncType(e,familyType) ?? "-";
                     string modification = GetModification(e) ?? "-";
                     string workPressure = GetWorkPressure(e, familyType) ?? "-";
                     string ductEI = GetDuctEI(e) ?? "-";
@@ -57,13 +57,14 @@ namespace RevitToMySQL
                         ID = e.Id.IntegerValue,
                         SortingCode = sortingCode
                     });
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Ошибка обработки элемента {e.Id}: {ex.Message}");
+
                 }
             }
-
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Ошибка обработки элемента : {ex.Message}");
+                //System.Diagnostics.Debug.WriteLine($"Ошибка обработки элемента {e.Id}: {ex.Message}");
+            }
             return result;
         }
 
@@ -99,7 +100,7 @@ namespace RevitToMySQL
             if (e is Pipe)
             {
                 try
-                {                    
+                {
                     Parameter segmentParam = e.get_Parameter(BuiltInParameter.RBS_PIPE_CLASS_PARAM);
                     if (segmentParam != null && segmentParam.HasValue)
                     {
@@ -158,44 +159,53 @@ namespace RevitToMySQL
             }
             return "-";
         }
-
-
-        //private static string GetUcode(Element familyType)
-        //{
-        //    //if(familyType == Pipe)
-        //    //{ }
-
-        //    if (familyType == null) return "-";
-
-        //    // if(e)
-        //    Parameter param = familyType.LookupParameter("BS_Код изделия");
-        //    if (param != null && param.HasValue)
-        //    {
-        //        return param.AsString()?.Trim() ?? "-";
-        //    }
-        //    return "-";
-        //}
-
-        private static string GetFuncGroup(Element familyType)
+             
+        private static string GetFuncGroup(Element element, Element familyType)
         {
-            if (familyType == null) return "-";
-
-            Parameter param = familyType.LookupParameter("MEP_Функциональная группа");
-            if (param != null && param.HasValue)
+            if (element != null)
             {
-                return param.AsString()?.Trim() ?? "-";
+                Parameter param = element.LookupParameter("MEP_Функциональная группа");
+                if (param != null && param.HasValue)
+                {
+                    string value = param.AsString()?.Trim();
+                    if (!string.IsNullOrEmpty(value))
+                        return value;
+                }
+            }
+            if (familyType != null)
+            {
+                Parameter param = familyType.LookupParameter("MEP_Функциональная группа");
+                if (param != null && param.HasValue)
+                {
+                    string value = param.AsString()?.Trim();
+                    if (!string.IsNullOrEmpty(value))
+                        return value;
+                }
             }
             return "-";
         }
 
-        private static string GetFuncType(Element familyType)
+        private static string GetFuncType(Element element, Element familyType)
         {
-            if (familyType == null) return "-";
-
-            Parameter param = familyType.LookupParameter("MEP_Функциональный тип");
-            if (param != null && param.HasValue)
+            if (element != null)
             {
-                return param.AsString()?.Trim() ?? "-";
+                Parameter param = element.LookupParameter("MEP_Функциональный тип");
+                if (param != null && param.HasValue)
+                {
+                    string value = param.AsString()?.Trim();
+                    if (!string.IsNullOrEmpty(value))
+                        return value;
+                }
+            }
+            if (familyType != null)
+            {
+                Parameter param = familyType.LookupParameter("MEP_Функциональный тип");
+                if (param != null && param.HasValue)
+                {
+                    string value = param.AsString()?.Trim();
+                    if (!string.IsNullOrEmpty(value))
+                        return value;
+                }
             }
             return "-";
         }

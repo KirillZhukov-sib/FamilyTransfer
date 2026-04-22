@@ -12,86 +12,80 @@ namespace RevitToMySQL
     {
         public static List<FamilyInfo> Equip(List<Element> familyList, Document doc,
                                               DatabaseCache dbCache, SectionCache sectionCache, Dictionary<int, FamilyInfo> parentsData)
-        {            
+        {
             if (familyList == null || !familyList.Any() || dbCache == null)
                 return new List<FamilyInfo>();
 
-            var result = new List<FamilyInfo>();         
+            var result = new List<FamilyInfo>();
 
             try
             {
                 foreach (Element e in familyList)
                 {
-                    try
+
+
+                    Element familyType = null;
+                    ElementId typeId = e.GetTypeId();
+                    if (typeId != ElementId.InvalidElementId)
                     {
+                        familyType = e.Document.GetElement(typeId);
+                    }
+                    int familyID = e.Id.IntegerValue;
 
-                        Element familyType = null;
-                        ElementId typeId = e.GetTypeId();
-                        if (typeId != ElementId.InvalidElementId)
+                    //var parent = parentsData(typeId);
+
+                    FamilyInfo pipe = new FamilyInfo();
+                    FamilyInfo pipe2 = parentsData[familyID];
+
+
+                    string parentOrder = pipe2.Order;
+
+
+
+
+                    int sorting = pipe2.SortingCode;
+                    string systemName = pipe2.SystemName;
+                    string section = pipe2.Section;
+                    string part = pipe2.Part;
+                    string ucode = familyType?.LookupParameter("BS_Код изделия")?.AsString()?.Trim() ?? "-";
+                    string modification = familyType?.LookupParameter("MEP_Модификация")?.AsString()?.Trim() ?? "-";
+
+                    var subEquipment = dbCache.GetSubEquipment(ucode, modification);
+                    if (subEquipment == null || subEquipment.Count == 0) continue;
+
+                    string familySize = ExtractSize(familyType);
+                    //string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
+
+                    //var sectionInfo = sectionCache.GetSectionAndPartForElement(e);
+                    //string section = sectionInfo.section ?? "-";
+                    //string part = sectionInfo.part ?? "-";
+
+                    foreach (var sub in subEquipment)
+                    {
+                        string orderSub = sub.EquipOrder;
+                        string order = MakeOrder(e, parentsData, orderSub);
+
+
+                        if (ShouldInclude(e, familyType, sub))
                         {
-                            familyType = e.Document.GetElement(typeId);
-                        }
-                        int familyID = e.Id.IntegerValue;
-
-                        //var parent = parentsData(typeId);
-
-                        FamilyInfo pipe = new FamilyInfo();
-                        FamilyInfo pipe2 = parentsData[familyID];
-
-
-                        string parentOrder = pipe2.Order;
-
-
-
-
-                        int sorting = pipe2.SortingCode;
-                        string systemName = pipe2.SystemName;
-                        string section = pipe2.Section;
-                        string part = pipe2.Part;
-                        string ucode = familyType?.LookupParameter("BS_Код изделия")?.AsString()?.Trim() ?? "-";
-                        string modification = familyType?.LookupParameter("MEP_Модификация")?.AsString()?.Trim() ?? "-";
-
-                        var subEquipment = dbCache.GetSubEquipment(ucode, modification);
-                        if (subEquipment == null || subEquipment.Count == 0) continue;
-
-                        string familySize = ExtractSize(familyType);
-                        //string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
-
-                        //var sectionInfo = sectionCache.GetSectionAndPartForElement(e);
-                        //string section = sectionInfo.section ?? "-";
-                        //string part = sectionInfo.part ?? "-";
-
-                        foreach (var sub in subEquipment)
-                        {
-                            string orderSub = sub.EquipOrder;                            
-                            string order = MakeOrder(e, parentsData, orderSub);
-
-
-                            if (ShouldInclude(e, familyType, sub))
+                            result.Add(new FamilyInfo
                             {
-                                result.Add(new FamilyInfo
-                                {
-                                    FamilyName = "комплектация тест",
-                                    Ucode = sub.Ucode ?? "",
-                                    Modification = sub.Modification ?? "",
-                                    WorkPressure = sub.WorkPressure ?? "",
-                                    Size = GetFinalSize(sub.Size, familySize),
-                                    Amount = sub.Amount ?? "-",
-                                    SystemName = systemName,
-                                    ID = familyID,
-                                    Section = section,
-                                    Part = part,
-                                    Order= order,
-                                    SortingCode = sorting 
-                                    //Order=sub.EquipOrder                                    
-                                });
-                            }
+                                FamilyName = "комплектация тест",
+                                Ucode = sub.Ucode ?? "",
+                                Modification = sub.Modification ?? "",
+                                WorkPressure = sub.WorkPressure ?? "",
+                                Size = GetFinalSize(sub.Size, familySize),
+                                Amount = sub.Amount ?? "-",
+                                SystemName = systemName,
+                                ID = familyID,
+                                Section = section,
+                                Part = part,
+                                Order = order,
+                                SortingCode = sorting
+                            });
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Ошибка обработки элемента: {ex.Message}");
-                    }
+
                 }
             }
             catch (Exception ex)
@@ -121,9 +115,7 @@ namespace RevitToMySQL
             return "-";
         }
 
-
-
-        private static string ExtractSize(Element familyType)
+        public static string ExtractSize(Element familyType)
         {
             if (familyType == null) return "-";
 
@@ -141,7 +133,6 @@ namespace RevitToMySQL
             }
             return dbSize ?? "-";
         }
-
         private static bool ShouldInclude(Element element, Element familyType, DatabaseCache.SubEquipment sub)
         {
             if (string.IsNullOrEmpty(sub.TriggerInstruction) || sub.TriggerInstruction == "нет")
@@ -175,8 +166,6 @@ namespace RevitToMySQL
                 parts[2].Replace("{", "").Replace("}", "")
             );
         }
-
-
         private static string GetParameterValue(Element element, Element familyType, string paramType, string paramName)
         {
             try

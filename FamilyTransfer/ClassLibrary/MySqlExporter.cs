@@ -36,8 +36,6 @@ namespace RevitToMySQL
                 }
             }
         }
-
-
         private static void PrepareCommandParameters(MySqlCommand command, string tableName)
         {
             // Очищаем существующие параметры

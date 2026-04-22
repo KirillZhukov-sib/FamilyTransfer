@@ -25,7 +25,7 @@ namespace RevitToMySQL
         public string Section { get; set; }
         public string Part { get; set; }
         public int ID { get; set; }
-        public int SortingCode {  get; set; }
+        public int SortingCode { get; set; }
     }
 }
 

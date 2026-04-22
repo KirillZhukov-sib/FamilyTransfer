@@ -60,6 +60,7 @@ namespace RevitToMySQL
             }
             catch (Exception ex)
             {
+
                 System.Diagnostics.Debug.WriteLine($"Ошибка загрузки DatabaseCache: {ex.Message}");
                 cache._funcGroupOrders = new Dictionary<string, int>();
                 cache._funcTypeOrders = new Dictionary<string, int>();
@@ -186,7 +187,8 @@ namespace RevitToMySQL
                             Size = reader.IsDBNull(5) ? null : reader.GetString(5),
                             Amount = reader.IsDBNull(6) ? null : reader.GetString(6),
                             TriggerInstruction = reader.IsDBNull(7) ? null : reader.GetString(7),
-                            EquipOrder = reader.GetInt64(8).ToString()                          
+                            EquipOrder = reader.GetInt64(8).ToString()  
+                            
                         };
 
                         map[key].Add(subEq);
