@@ -166,6 +166,7 @@ namespace RevitToMySQL
                 parts[2].Replace("{", "").Replace("}", "")
             );
         }
+
         private static string GetParameterValue(Element element, Element familyType, string paramType, string paramName)
         {
             try

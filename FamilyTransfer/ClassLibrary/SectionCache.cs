@@ -38,6 +38,7 @@ namespace RevitToMySQL
                 Document linkDoc = linkInstance.GetLinkDocument();
                 if (linkDoc == null) return;
 
+
                 // Получаем все формы одним проходом
                 List<Element> allForms = new FilteredElementCollector(linkDoc)
                     .OfCategory(BuiltInCategory.OST_Mass)

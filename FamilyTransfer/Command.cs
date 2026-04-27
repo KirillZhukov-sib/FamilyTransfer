@@ -42,6 +42,7 @@ namespace RevitToMySQL
                 // БЛОК 2: Кэш секций
                 SectionCache sectionCache = new SectionCache(doc);
 
+
                 // БЛОК 3: Получение связанные модели
 
 

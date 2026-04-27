@@ -222,6 +222,7 @@ namespace RevitToMySQL
             return "-";
         }
 
+
         private static string GetSystemName(Element element)
         {
             if (element == null) return "-";
