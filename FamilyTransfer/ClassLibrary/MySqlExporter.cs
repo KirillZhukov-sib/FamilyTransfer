@@ -1,11 +1,17 @@
-﻿using System;
+﻿using MySql.Data.MySqlClient;
+using System;
 using System.Collections.Generic;
-using MySql.Data.MySqlClient;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace RevitToMySQL
 {
     public static class MySqlExporter
     {
+        private const int BATCH_SIZE = 1000;
+
+        // ========== ЕДИНСТВЕННЫЙ МЕТОД (полный экспорт) ==========
         public static void ExportToMySQL(List<FamilyInfo> elements, string tableName, string connectionString)
         {
             if (elements == null || elements.Count == 0) return;
@@ -16,102 +22,104 @@ namespace RevitToMySQL
 
                 using (MySqlTransaction transaction = connection.BeginTransaction())
                 {
-                    string sql = tableName == "pipetest" ? GetPipeInsertSql() : GetDuctInsertSql();
-
-                    using (MySqlCommand command = new MySqlCommand(sql, connection, transaction))
+                    for (int i = 0; i < elements.Count; i += BATCH_SIZE)
                     {
-                        // Подготавливаем команду один раз
-                        PrepareCommandParameters(command, tableName);
-                        command.Prepare();
-
-                        foreach (var e in elements)
-                        {
-                            // Заполняем параметры значениями
-                            SetCommandParameters(command, e, tableName);
-                            command.ExecuteNonQuery();
-                        }
+                        var batch = elements.Skip(i).Take(BATCH_SIZE).ToList();
+                        InsertBatch(connection, transaction, batch, tableName);
                     }
 
                     transaction.Commit();
                 }
             }
         }
-        private static void PrepareCommandParameters(MySqlCommand command, string tableName)
+
+        // ========== СТАРЫЙ МЕТОД InsertBatch ==========
+        private static void InsertBatch(
+            MySqlConnection connection,
+            MySqlTransaction transaction,
+            List<FamilyInfo> batch,
+            string tableName)
         {
-            // Очищаем существующие параметры
-            command.Parameters.Clear();
+            string sql = BuildInsertSql(batch, tableName);
 
-            // Добавляем все возможные параметры
-            command.Parameters.Add("@familyname", MySqlDbType.VarChar);
-            command.Parameters.Add("@ucode", MySqlDbType.VarChar);
-            command.Parameters.Add("@funcgroup", MySqlDbType.VarChar);
-            command.Parameters.Add("@functypes", MySqlDbType.VarChar);
-            command.Parameters.Add("@modification", MySqlDbType.VarChar);
-
-            if (tableName == "pipetest")
+            using (MySqlCommand command = new MySqlCommand(sql, connection, transaction))
             {
-                command.Parameters.Add("@workpressure", MySqlDbType.VarChar);
+                for (int i = 0; i < batch.Count; i++)
+                {
+                    var e = batch[i];
+                    string suffix = $"_{i}";
+
+                    command.Parameters.AddWithValue($"@familyname{suffix}", e.FamilyName ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@ucode{suffix}", e.Ucode ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@funcgroup{suffix}", e.FuncGroup ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@functypes{suffix}", e.FuncTypes ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@modification{suffix}", e.Modification ?? (object)DBNull.Value);
+
+                    if (tableName == "OV1")
+                    {
+                        command.Parameters.AddWithValue($"@workpressure{suffix}", e.WorkPressure ?? (object)DBNull.Value);
+                    }
+                    else
+                    {
+                        command.Parameters.AddWithValue($"@ductei{suffix}", e.DuctEI ?? (object)DBNull.Value);
+                    }
+
+                    command.Parameters.AddWithValue($"@order{suffix}", e.Order ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@size{suffix}", e.Size ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@systemname{suffix}", e.SystemName ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@amount{suffix}", e.Amount ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@section{suffix}", e.Section ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@part{suffix}", e.Part ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue($"@id{suffix}", e.ID);
+                    command.Parameters.AddWithValue($"@sorting{suffix}", e.SortingCode);
+                    command.Parameters.AddWithValue($"@wipcode{suffix}", e.WipCode ?? (object)DBNull.Value);
+
+                    // ❌ НЕ БЫЛО! Эти параметры добавили позже:
+                    // command.Parameters.AddWithValue($"@hash{suffix}", ComputeHash(e));
+                    // command.Parameters.AddWithValue($"@lastmodified_{suffix}", DateTime.Now);
+                    // command.Parameters.AddWithValue($"@lastmodifiedby_{suffix}", Environment.UserName);
+                }
+
+                command.ExecuteNonQuery();
+            }
+        }
+
+        // ========== СТАРЫЙ BuildInsertSql (БЕЗ DataHash, LastModified, LastModifiedBy) ==========
+        private static string BuildInsertSql(List<FamilyInfo> batch, string tableName)
+        {
+            var sb = new StringBuilder();
+
+            if (tableName == "OV1")
+            {
+                sb.AppendLine("INSERT INTO OV1 (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, WorkPressure, `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting, WipCode) VALUES ");
             }
             else
             {
-                command.Parameters.Add("@ductei", MySqlDbType.VarChar);
+                sb.AppendLine("INSERT INTO OV2 (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, DuctEI, `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting, WipCode) VALUES ");
             }
 
-            command.Parameters.Add("@order", MySqlDbType.VarChar);
-            command.Parameters.Add("@size", MySqlDbType.VarChar);
-            command.Parameters.Add("@systemname", MySqlDbType.VarChar);
-            command.Parameters.Add("@amount", MySqlDbType.VarChar);
-            command.Parameters.Add("@section", MySqlDbType.VarChar);
-            command.Parameters.Add("@part", MySqlDbType.VarChar);
-            command.Parameters.Add("@id", MySqlDbType.Int32);
-            command.Parameters.Add("@sorting", MySqlDbType.Int32);
-        }
-
-        private static void SetCommandParameters(MySqlCommand command, FamilyInfo e, string tableName)
-        {
-            command.Parameters["@familyname"].Value = e.FamilyName ?? (object)DBNull.Value;
-            command.Parameters["@ucode"].Value = e.Ucode ?? (object)DBNull.Value;
-            command.Parameters["@funcgroup"].Value = e.FuncGroup ?? (object)DBNull.Value;
-            command.Parameters["@functypes"].Value = e.FuncTypes ?? (object)DBNull.Value;
-            command.Parameters["@modification"].Value = e.Modification ?? (object)DBNull.Value;
-
-            if (tableName == "pipetest")
+            for (int i = 0; i < batch.Count; i++)
             {
-                command.Parameters["@workpressure"].Value = e.WorkPressure ?? (object)DBNull.Value;
+                sb.Append($"(@familyname_{i}, @ucode_{i}, @funcgroup_{i}, @functypes_{i}, @modification_{i}, ");
+
+                if (tableName == "OV1")
+                {
+                    sb.Append($"@workpressure_{i}, ");
+                }
+                else
+                {
+                    sb.Append($"@ductei_{i}, ");
+                }
+
+                sb.Append($"@order_{i}, @size_{i}, @systemname_{i}, @amount_{i}, @section_{i}, @part_{i}, @id_{i}, @sorting_{i}, @wipcode_{i})");
+
+                if (i < batch.Count - 1)
+                    sb.Append(", ");
+                else
+                    sb.Append(";");
             }
-            else
-            {
-                command.Parameters["@ductei"].Value = e.DuctEI ?? (object)DBNull.Value;
-            }
 
-            command.Parameters["@order"].Value = e.Order ?? (object)DBNull.Value;
-            command.Parameters["@size"].Value = e.Size ?? (object)DBNull.Value;
-            command.Parameters["@systemname"].Value = e.SystemName ?? (object)DBNull.Value;
-            command.Parameters["@amount"].Value = e.Amount ?? (object)DBNull.Value;
-            command.Parameters["@section"].Value = e.Section ?? (object)DBNull.Value;
-            command.Parameters["@part"].Value = e.Part ?? (object)DBNull.Value;
-            command.Parameters["@id"].Value = e.ID;
-            command.Parameters["@sorting"].Value = e.SortingCode;
-        }
-
-        private static string GetPipeInsertSql() 
-        {
-            return @"INSERT INTO pipetest 
-                    (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, WorkPressure, 
-                     `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting)
-                    VALUES 
-                    (@familyname, @ucode, @funcgroup, @functypes, @modification, @workpressure,
-                     @order, @size, @systemname, @amount, @section, @part, @id, @sorting);";
-        }
-
-        private static string GetDuctInsertSql()
-        {
-            return @"INSERT INTO ducttest 
-                    (FamilyName, Ucode, FuncGroup, FuncTypes, Modification, DuctEI,
-                     `Order`, Size, SystemName, Amount, Section, Part, ID, Sorting)
-                    VALUES 
-                    (@familyname, @ucode, @funcgroup, @functypes, @modification, @ductei,
-                     @order, @size, @systemname, @amount, @section, @part, @id, @sorting);";
+            return sb.ToString();
         }
     }
 }

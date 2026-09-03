@@ -1,5 +1,6 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using FamilyTransfer;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,61 +11,51 @@ namespace RevitToMySQL
 {
     public class EquipmentDetector
     {
-        public static List<FamilyInfo> Equip(List<Element> familyList, Document doc,
-                                              DatabaseCache dbCache, SectionCache sectionCache, Dictionary<int, FamilyInfo> parentsData)
+        public static List<FamilyInfo> Equip(
+            List<Element> familyList,
+            Document doc,
+            DatabaseCache dbCache,
+            SectionCache sectionCache,
+            Dictionary<string, FamilyInfo> parentsData,
+            string wipCode)
         {
-            if (familyList == null || !familyList.Any() || dbCache == null)
+            if (familyList == null || !familyList.Any() || dbCache == null || parentsData == null)
                 return new List<FamilyInfo>();
 
             var result = new List<FamilyInfo>();
-
             try
             {
                 foreach (Element e in familyList)
                 {
-
-
                     Element familyType = null;
                     ElementId typeId = e.GetTypeId();
                     if (typeId != ElementId.InvalidElementId)
                     {
                         familyType = e.Document.GetElement(typeId);
                     }
-                    int familyID = e.Id.IntegerValue;
 
-                    //var parent = parentsData(typeId);
+                    string key = $"{e.Document.GetHashCode()}_{e.Id.IntegerValue}";
 
-                    FamilyInfo pipe = new FamilyInfo();
-                    FamilyInfo pipe2 = parentsData[familyID];
-
+                    if (!parentsData.TryGetValue(key, out FamilyInfo pipe2))
+                        continue;
 
                     string parentOrder = pipe2.Order;
-
-
-
-
                     int sorting = pipe2.SortingCode;
                     string systemName = pipe2.SystemName;
                     string section = pipe2.Section;
                     string part = pipe2.Part;
-                    string ucode = familyType?.LookupParameter("BS_Код изделия")?.AsString()?.Trim() ?? "-";
-                    string modification = familyType?.LookupParameter("MEP_Модификация")?.AsString()?.Trim() ?? "-";
+                    string ucode = familyType?.LookupParameter(ParametersInfo.UCode)?.AsString()?.Trim() ?? "-";
+                    string modification = familyType?.LookupParameter(ParametersInfo.Modification)?.AsString()?.Trim() ?? "-";
 
                     var subEquipment = dbCache.GetSubEquipment(ucode, modification);
                     if (subEquipment == null || subEquipment.Count == 0) continue;
 
                     string familySize = ExtractSize(familyType);
-                    //string systemName = e.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM)?.AsString() ?? "-";
-
-                    //var sectionInfo = sectionCache.GetSectionAndPartForElement(e);
-                    //string section = sectionInfo.section ?? "-";
-                    //string part = sectionInfo.part ?? "-";
 
                     foreach (var sub in subEquipment)
                     {
                         string orderSub = sub.EquipOrder;
                         string order = MakeOrder(e, parentsData, orderSub);
-
 
                         if (ShouldInclude(e, familyType, sub))
                         {
@@ -77,15 +68,15 @@ namespace RevitToMySQL
                                 Size = GetFinalSize(sub.Size, familySize),
                                 Amount = sub.Amount ?? "-",
                                 SystemName = systemName,
-                                ID = familyID,
+                                ID = e.Id.IntegerValue,
                                 Section = section,
                                 Part = part,
                                 Order = order,
-                                SortingCode = sorting
+                                SortingCode = sorting,
+                                WipCode = wipCode
                             });
                         }
                     }
-
                 }
             }
             catch (Exception ex)
@@ -95,11 +86,15 @@ namespace RevitToMySQL
 
             return result;
         }
-        private static string MakeOrder(Element e, Dictionary<int, FamilyInfo> parentsData, string dirtyEquipOrder)
-        {
-            FamilyInfo family = parentsData[e.Id.IntegerValue];
-            string parentOrder = family.Order;
 
+        private static string MakeOrder(Element e, Dictionary<string, FamilyInfo> parentsData, string dirtyEquipOrder)
+        {
+            string key = $"{e.Document.GetHashCode()}_{e.Id.IntegerValue}";
+
+            if (!parentsData.TryGetValue(key, out FamilyInfo family))
+                return "-";
+
+            string parentOrder = family.Order;
 
             if (dirtyEquipOrder.All(char.IsDigit) && dirtyEquipOrder.Length == 2)
             {
@@ -119,7 +114,7 @@ namespace RevitToMySQL
         {
             if (familyType == null) return "-";
 
-            string sizeDirty = familyType.LookupParameter("MEP_Диаметр 1")?.AsValueString()?.Trim() ?? "-";
+            string sizeDirty = familyType.LookupParameter(ParametersInfo.Diameter1)?.AsValueString()?.Trim() ?? "-";
             Match match = Regex.Match(sizeDirty, @"[\d\.]+");
             return match.Success ? match.Value : "-";
         }
@@ -133,6 +128,7 @@ namespace RevitToMySQL
             }
             return dbSize ?? "-";
         }
+
         private static bool ShouldInclude(Element element, Element familyType, DatabaseCache.SubEquipment sub)
         {
             if (string.IsNullOrEmpty(sub.TriggerInstruction) || sub.TriggerInstruction == "нет")
@@ -153,7 +149,6 @@ namespace RevitToMySQL
                 return false;
             }
         }
-
         private static (string type, string name, string value) ParseTrigger(string trigger)
         {
             string[] parts = trigger.Split(':');

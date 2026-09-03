@@ -1,12 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Autodesk.Revit.DB;
-using Autodesk.Revit.UI;
-using System.Diagnostics;
-using System.IO;
-
-/*
+﻿/*
 Текущая скорость: 
 Тест 1: 73 024 эл. за 1001 сек
 Тест 2: 67 430 эл. за 817 сек
@@ -15,10 +7,30 @@ using System.IO;
 Тест 5: 1269 эл. за 20 сек 
 
 Тест 2.1: 46098 эл. за 612,94
+Тест 2.2: 1269 эл. за 24,41 сек - внедрение только интерфейса
+Тест 2.3 1269 эл. за 3,94 сек - внедрение интерфейса и запросов  
+Тест 2.4 41 588 эл. за 59,38 сек - стоянка байкальской 
+Тест 2.5 76 147 эл. за 57.76 сек
+Тест 2.6 41 796 эл. за 53.59 сек - стоянка байкальской через интерфейс
+Тест 2.6  эл. за сек - стоянка байкальской через библиотеку классов
+
 
 В инструкции указать об обязательности подгрузки КФ
 */
 
+using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
+using FamilyTransfer.Cache;
+using FamilyTransfer.ViewModels;
+using FamilyTransfer.Views;
+using Microsoft.Identity.Client;
+using RevitToMySQL.Caching;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Windows;
 
 namespace RevitToMySQL
 {
@@ -28,138 +40,30 @@ namespace RevitToMySQL
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;
-            Document doc = uiDoc.Document;
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
+
+            if (uiDoc == null)
+            {
+                TaskDialog.Show("Ошибка", "Откройте проект Revit");
+                return Result.Failed;
+            }
+
             try
             {
-
-                TaskDialog.Show("Программа запущена", "Начало экспорта данных....");
-
-                // БЛОК 1: Загрузка данные из БД MySQL
-                DatabaseCache dbCache = DatabaseCache.LoadAllData();
-
-                // БЛОК 2: Кэш секций
-                SectionCache sectionCache = new SectionCache(doc);
-
-
-                // БЛОК 3: Получение связанные модели
-
-
-
-
-                // Находим связанную модель с формами
-
-                /*
-                RevitLinkInstance linkInstance = new FilteredElementCollector(doc)
-                    .OfClass(typeof(RevitLinkInstance))
-                    .Cast<RevitLinkInstance>()
-                    .FirstOrDefault(link => System.Text.RegularExpressions.Regex.IsMatch(
-                        link.Name, @"^\d{4}-\d\.rvt"));
-                
-
-
-
-                List<RevitLinkInstance> links = new FilteredElementCollector(doc)
-                    .OfClass(typeof(RevitLinkInstance))
-                    .Cast<RevitLinkInstance>()
-                    .ToList();
-
-                List<Document> linkDocuments = new List<Document>();
-                foreach (RevitLinkInstance link in links)
+                var viewModel = new ExportViewModel(uiDoc);
+                var window = new ExportWindow
                 {
-                    Document linkDoc = link.GetLinkDocument();
-                    if (linkDoc != null)
-                    {
-                        linkDocuments.Add(linkDoc);
-                    }
-                }
-                */
+                    DataContext = viewModel
+                };
 
-
-
-                // Шаг 4: Собираем элементы из основного документа
-                List<Element> pipeElements = ElementCollectorHelper.GetPipeElements(doc);
-                List<Element> ductElements = ElementCollectorHelper.GetDuctElements(doc);
-
-
-                /*
-                // Шаг 5: Собираем элементы из связанных моделей
-                foreach (Document linkDoc in linkDocuments)
-                {
-                    try
-                    {
-
-                // вот здесь 
-                        pipeElements.AddRange(ElementCollectorHelper.GetPipeElements(linkDoc));
-                        ductElements.AddRange(ElementCollectorHelper.GetDuctElements(linkDoc));
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Ошибка обработки связанной модели: {ex.Message}");
-                    }
-                }
-                
-                */
-
-                // Шаг 6: Обрабатываем параметры
-                List<FamilyInfo> pipeData = ParameterProcessor.GetParameters(pipeElements, doc, dbCache, sectionCache);
-                //List<FamilyInfo> ductData = ParameterProcessor.GetParameters(ductElements, doc, dbCache, sectionCache);
-
-                //кэш существующих родителей
-                var pipeParentData = pipeData.ToDictionary(x => x.ID, x => x);
-                //var ductParentData = ductData.ToDictionary(x => x.ID, x => x);
-
-
-                // Шаг 7: Получаем комплектации
-                List<FamilyInfo> pipeEquipment = EquipmentDetector.Equip(pipeElements, doc, dbCache, sectionCache, pipeParentData);
-                //List<FamilyInfo> ductEquipment = EquipmentDetector.Equip(ductElements, doc, dbCache, sectionCache, ductParentData);
-
-                // Шаг 8: Сортировка
-                pipeData = pipeData.OrderBy(x => x.SortingCode)
-                                   .ThenBy(x => x.SystemName)
-                                   .ThenBy(x => x.Order)
-                                   .ToList();
-
-                //ductData = ductData.OrderBy(x => x.SortingCode)
-                //                    .ThenBy(x => x.SystemName)
-                //                    .ThenBy(x => x.Order)
-                //                    .ToList();
-
-                // Шаг 9: Экспорт в MySQL
-                string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson("testovk");
-
-                MySqlExporter.ExportToMySQL(pipeData, "pipetest", connectionString);
-                //MySqlExporter.ExportToMySQL(ductData, "ducttest", connectionString);
-               // MySqlExporter.ExportToMySQL(pipeEquipment, "pipetest", connectionString);
-                //MySqlExporter.ExportToMySQL(ductEquipment, "ducttest", connectionString);
-                //
-                stopwatch.Stop();
-                TimeSpan ts = stopwatch.Elapsed;
-
-                TaskDialog.Show("Успех", $"Экспортировано элементов:\n" +
-                                         $"Элементы трубопроводых систем: {pipeData.Count}\n" +
-                                         //$"Элементы воздуховодных систем: {ductData.Count}\n" +
-                                         $"Комплектации труб: {pipeEquipment.Count}\n" +
-                                         //$"Комплектации воздуховодов: {ductEquipment.Count}\n" +
-                                         //$"Всего экспортировано элементов: {pipeData.Count + ductData.Count}\n" +
-                                         $"Экспорт выполнен за {ts.TotalSeconds:F2} секунд");
-
+                window.ShowDialog();
                 return Result.Succeeded;
             }
             catch (Exception ex)
             {
-                stopwatch.Stop();
                 message = ex.Message;
-                TaskDialog.Show("Ошибка",
-            $"Ошибка через {stopwatch.Elapsed.TotalSeconds:F2} сек: {ex.Message}");
+                TaskDialog.Show("Ошибка", ex.Message);
                 return Result.Failed;
             }
         }
     }
 }
-
-
-
-
-

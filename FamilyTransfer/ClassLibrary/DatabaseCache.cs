@@ -89,7 +89,6 @@ namespace RevitToMySQL
                         {
                             int value = reader.GetInt32(1);
 
-                            // Просто добавляем без разбивки
                             if (!dict.ContainsKey(key))
                             {
                                 dict[key] = value;
@@ -106,7 +105,7 @@ namespace RevitToMySQL
             return dict;
         }
 
-
+         
         private static Dictionary<string, int> LoadDictionaryWithSplitting(MySqlConnection connection, string query)
         {
             var dict = new Dictionary<string, int>();
@@ -117,6 +116,7 @@ namespace RevitToMySQL
                 using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
+
                     {
                         string rawValue = reader.IsDBNull(0) ? "" : reader.GetString(0);
                         if (!string.IsNullOrEmpty(rawValue) && !reader.IsDBNull(1))
@@ -157,15 +157,15 @@ namespace RevitToMySQL
         }
         private static Dictionary<(string, string), List<SubEquipment>> LoadSubEquipment(MySqlConnection connection)
         {
-            var map = new Dictionary<(string, string), List<SubEquipment>>();
+            var map = new Dictionary<(string, string), List<SubEquipment>>(); 
 
             try
             {
                 string query = @"SELECT subeq_pipes_prnt_ucode, subeq_pipes_prnt_modification,
-                                        subeq_pipes_sub_ucode, subeq_pipes_sub_modification,
-                                        subeq_pipes_sub_workpressure, subeq_pipes_sub_size,
-                                        subeq_pipes_formula, subeq_pipes_triggers, subeq_pipes_sub_order 
-                                 FROM Equip_subequipment_pipes";
+                                subeq_pipes_sub_ucode, subeq_pipes_sub_modification,
+                                subeq_pipes_sub_workpressure, subeq_pipes_sub_size,
+                                subeq_pipes_formula, subeq_pipes_triggers, subeq_pipes_sub_order 
+                         FROM Equip_subequipment_pipes";
 
                 using (var cmd = new MySqlCommand(query, connection))
                 using (var reader = cmd.ExecuteReader())
@@ -176,22 +176,24 @@ namespace RevitToMySQL
 
                         var key = (reader.GetString(0), reader.GetString(1));
 
-                        if (!map.ContainsKey(key))
-                            map[key] = new List<SubEquipment>();
+                        if (!map.TryGetValue(key, out var subEquipmentList))
+                        {
+                            subEquipmentList = new List<SubEquipment>();
+                            map[key] = subEquipmentList;
+                        }
 
                         var subEq = new SubEquipment
                         {
-                            Ucode = reader.GetString(2),
-                            Modification = reader.GetString(3),
+                            Ucode = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                            Modification = reader.IsDBNull(3) ? "" : reader.GetString(3),
                             WorkPressure = reader.IsDBNull(4) ? "" : reader.GetString(4),
                             Size = reader.IsDBNull(5) ? null : reader.GetString(5),
                             Amount = reader.IsDBNull(6) ? null : reader.GetString(6),
                             TriggerInstruction = reader.IsDBNull(7) ? null : reader.GetString(7),
-                            EquipOrder = reader.GetInt64(8).ToString()  
-                            
+                            EquipOrder = reader.IsDBNull(8) ? "0" : reader.GetInt64(8).ToString()
                         };
 
-                        map[key].Add(subEq);
+                        subEquipmentList.Add(subEq);
                     }
                 }
             }
@@ -199,7 +201,6 @@ namespace RevitToMySQL
             {
                 System.Diagnostics.Debug.WriteLine($"Ошибка загрузки подоборудования: {ex.Message}");
             }
-
             return map;
         }
         public int? GetFuncGroupOrder(string groupName)

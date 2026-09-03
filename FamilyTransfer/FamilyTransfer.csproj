@@ -223,6 +223,7 @@
       <HintPath>..\packages\System.ValueTuple.4.5.0\lib\net47\System.ValueTuple.dll</HintPath>
     </Reference>
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -236,25 +237,51 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.cs" />
+    <Compile Include="Cache\IParameterCache.cs" />
+    <Compile Include="Cache\ITypeParameterCacheProvider.cs" />
+    <Compile Include="Cache\ParameterCache.cs" />
+    <Compile Include="Cache\ParameterResolver.cs" />
+    <Compile Include="Cache\TypeParameterCacheProvider.cs" />
+    <Compile Include="ClassLibrary\Class1.cs" />
+    <Compile Include="ClassLibrary\FindingLevels.cs" />
+    <Compile Include="ClassLibrary\LevelDetector.cs" />
     <Compile Include="ClassLibrary\SectionCache.cs" />
-    <Compile Include="ClassLibrary\AISolution.cs" />
     <Compile Include="ClassLibrary\MySqlExporter.cs" />
     <Compile Include="ClassLibrary\ConnectionStringHelper.cs" />
     <Compile Include="ClassLibrary\FamilyInfo.cs" />
-    <Compile Include="ClassLibrary\ElementCollectorHelper.cs" />
+    <Compile Include="Unused\ElementCollectorHelper.cs" />
     <Compile Include="ClassLibrary\ParameterProcessor.cs" />
-    <Compile Include="tClassesOld\lastSectionHelper.cs" />
+    <Compile Include="ClassLibrary\ParametersInfo.cs" />
     <Compile Include="Command.cs" />
     <Compile Include="ClassLibrary\EquipmentDetector.cs" />
     <Compile Include="ClassLibrary\DatabaseCache.cs" />
-    <Compile Include="Counter.cs" />
+    <Compile Include="Models\SectionItem.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ViewModels\ExportViewModel.cs" />
+    <Compile Include="Views\ExportWindow.xaml.cs">
+      <DependentUpon>ExportWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\UserControl1.xaml.cs">
+      <DependentUpon>UserControl1.xaml</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Page Include="Views\ExportWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\UserControl1.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="ClassLibrary\NewFolder1\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Microsoft.Data.SqlClient.SNI.6.0.2\build\net462\Microsoft.Data.SqlClient.SNI.targets" Condition="Exists('..\packages\Microsoft.Data.SqlClient.SNI.6.0.2\build\net462\Microsoft.Data.SqlClient.SNI.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
