@@ -558,7 +558,7 @@ namespace FamilyTransfer.ViewModels
                     return;
                 }
 
-                // ========== 2. WIP CODE (из основной модели) ==========
+                // ========== 2. WIP CODE ==========
                 string wipCode = _doc.Title.Length >= 4 ? _doc.Title.Substring(0, 4) : _doc.Title;
                 LogMessage($"WipCode: {wipCode}");
 
@@ -718,40 +718,101 @@ namespace FamilyTransfer.ViewModels
                                        .ToList();
                 }
 
-                // ========== 9. ЭКСПОРТ В MySQL ==========
-                UpdateProgress(85, "Экспорт в MySQL...", "Подключение к базе данных");
+                // ======================================================
+                // 9. ЭКСПОРТ В MySQL
+                // ======================================================
+
+                UpdateProgress(
+                    85,
+                    "Экспорт в MySQL...",
+                    "Подготовка данных для инкрементального экспорта");
+
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string connectionString = ConnectionStringHelper.GetConnectionStringFromSecretJson(DatabaseName);
-                LogMessage($"Подключение к БД: {DatabaseName}");
+                string connectionString =
+                    ConnectionStringHelper.GetConnectionStringFromSecretJson(
+                        DatabaseName);
 
-                if (pipeData.Count > 0)
+                LogMessage(
+                    $"Подключение к БД: {DatabaseName}");
+
+
+                // ======================================================
+                // OV1
+                // трубы + комплектации труб
+                // ======================================================
+
+                var ov1Data = new List<FamilyInfo>();
+
+                if (pipeData != null)
                 {
-                    LogMessage("Экспорт труб (OV1)...");
-                    MySqlExporter.ExportToMySQL(pipeData, "OV1", connectionString);
-                    LogMessage($"Трубы экспортированы: {pipeData.Count} записей");
+                    ov1Data.AddRange(pipeData);
                 }
 
-                if (ductData.Count > 0)
+                if (pipeEquipment != null)
                 {
-                    LogMessage("Экспорт воздуховодов (OV2)...");
-                    MySqlExporter.ExportToMySQL(ductData, "OV2", connectionString);
-                    LogMessage($"Воздуховоды экспортированы: {ductData.Count} записей");
+                    ov1Data.AddRange(pipeEquipment);
                 }
 
-                if (pipeEquipment.Count > 0)
+
+                LogMessage($"OV1 подготовлено записей: {ov1Data.Count}");
+
+                LogMessage($"  Обычные элементы: {pipeData?.Count ?? 0}");
+
+                LogMessage(
+                    $"  Комплектации: {pipeEquipment?.Count ?? 0}");
+
+
+                // Инкрементальный экспорт должен получать
+                // ПОЛНОЕ состояние таблицы
+
+                IncrementalExporter.ExportIncremental(
+                    ov1Data,
+                    "OV1",
+                    connectionString);
+
+                LogMessage(
+                    $"OV1 экспортирована успешно.");
+
+
+                // ======================================================
+                // OV2
+                // воздуховоды + комплектации воздуховодов
+                // ======================================================
+
+                var ov2Data = new List<FamilyInfo>();
+
+                if (ductData != null)
                 {
-                    LogMessage("Экспорт комплектаций труб (OV1)...");
-                    MySqlExporter.ExportToMySQL(pipeEquipment, "OV1", connectionString);
-                    LogMessage($"Комплектации труб экспортированы: {pipeEquipment.Count} записей");
+                    ov2Data.AddRange(ductData);
                 }
 
-                if (ductEquipment.Count > 0)
+                if (ductEquipment != null)
                 {
-                    LogMessage("Экспорт комплектаций воздуховодов (OV2)...");
-                    MySqlExporter.ExportToMySQL(ductEquipment, "OV2", connectionString);
-                    LogMessage($"Комплектации воздуховодов экспортированы: {ductEquipment.Count} записей");
+                    ov2Data.AddRange(ductEquipment);
                 }
+
+
+                LogMessage(
+                    $"OV2 подготовлено записей: {ov2Data.Count}");
+
+                LogMessage(
+                    $"  Обычные элементы: {ductData?.Count ?? 0}");
+
+                LogMessage(
+                    $"  Комплектации: {ductEquipment?.Count ?? 0}");
+
+
+                // Инкрементальный экспорт должен получать
+                // ПОЛНОЕ состояние таблицы
+
+                IncrementalExporter.ExportIncremental(
+                    ov2Data,
+                    "OV2",
+                    connectionString);
+
+                LogMessage(
+                    $"OV2 экспортирована успешно.");
 
                 stopwatch.Stop();
 
@@ -782,6 +843,10 @@ namespace FamilyTransfer.ViewModels
 
         private void UpdateProgress(int percent, string shortMessage, string detailMessage)
         {
+            // Добавим проверку на валидность процентов
+            if (percent > 100) percent = 100;
+            if (percent < 0) percent = 0;
+
             if (Application.Current != null && Application.Current.Dispatcher != null)
             {
                 Application.Current.Dispatcher.Invoke(() =>
@@ -791,6 +856,12 @@ namespace FamilyTransfer.ViewModels
                     ProgressText = $"{percent}%";
                     ProgressDetail = detailMessage;
                     StatusMessage = shortMessage;
+
+                    // ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ UI
+                    OnPropertyChanged(nameof(ProgressValue));
+                    OnPropertyChanged(nameof(ProgressText));
+                    OnPropertyChanged(nameof(ProgressDetail));
+                    OnPropertyChanged(nameof(StatusMessage));
                 });
             }
             else

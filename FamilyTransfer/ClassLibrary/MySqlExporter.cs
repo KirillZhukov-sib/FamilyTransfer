@@ -32,7 +32,6 @@ namespace RevitToMySQL
                 }
             }
         }
-
         // ========== СТАРЫЙ МЕТОД InsertBatch ==========
         private static void InsertBatch(
             MySqlConnection connection,

@@ -55,7 +55,8 @@ namespace RevitToMySQL
                 int sortingCode = GetSortingCode(e, systemName, dbCache);
                 string order = MakeOrder(funcGroup, funcType, dbCache);
 
-                result.Add(new FamilyInfo
+                // СОЗДАЕМ ОБЪЕКТ
+                var item = new FamilyInfo
                 {
                     FamilyName = familyName,
                     Ucode = ucode,
@@ -73,11 +74,19 @@ namespace RevitToMySQL
                     ID = e.Id.IntegerValue,
                     SortingCode = sortingCode,
                     WipCode = wipCode
-                });
+                };
+
+                // ====== НОВОЕ: ВЫЧИСЛЯЕМ ХЕШ И ДОБАВЛЯЕМ СЛУЖЕБНЫЕ ПОЛЯ ======
+                HashHelper.UpdateHash(item);
+                // =========================================================
+
+                result.Add(item);
             }
 
             return result;
         }
+
+        // Остальные методы остаются без изменений
         private static string GetFamilyName(Element element, ParameterResolver resolver)
         {
             string value = resolver.GetString(ParametersInfo.FamilyName);
@@ -90,6 +99,7 @@ namespace RevitToMySQL
 
             return "Не указано";
         }
+
         private static string GetUcode(Element element, ParameterResolver resolver)
         {
             if (element is Pipe)
@@ -115,26 +125,31 @@ namespace RevitToMySQL
             string value = resolver.GetString(ParametersInfo.FuncGroup);
             return !string.IsNullOrEmpty(value) ? value : "-";
         }
+
         private static string GetFuncType(ParameterResolver resolver)
         {
             string value = resolver.GetString(ParametersInfo.FuncType);
             return !string.IsNullOrEmpty(value) ? value : "-";
         }
+
         private static string GetModification(ParameterResolver resolver)
         {
             string value = resolver.GetString(ParametersInfo.Modification);
             return !string.IsNullOrEmpty(value) ? value : "-";
         }
+
         private static string GetWorkPressure(ParameterResolver resolver)
         {
             string value = resolver.GetString(ParametersInfo.WorkPressureNominal);
             return !string.IsNullOrEmpty(value) ? value : "-";
         }
+
         private static string GetDuctEI(ParameterResolver resolver)
         {
             string value = resolver.GetString(ParametersInfo.FireResistance);
             return !string.IsNullOrEmpty(value) ? value : "-";
         }
+
         private static string GetSystemName(Element element, ParameterResolver resolver)
         {
             Parameter param = element.get_Parameter(BuiltInParameter.RBS_DUCT_PIPE_SYSTEM_ABBREVIATION_PARAM);
@@ -261,6 +276,7 @@ namespace RevitToMySQL
                 return "-";
             }
         }
+
         private static string MakeOrder(string funcGroup, string funcType, DatabaseCache dbCache)
         {
             if (dbCache == null) return "-";
@@ -280,6 +296,7 @@ namespace RevitToMySQL
                 return "-";
             }
         }
+
         private static int GetSortingCode(Element element, string systemName, DatabaseCache dbCache)
         {
             if (element == null || dbCache == null) return 0;
@@ -308,6 +325,7 @@ namespace RevitToMySQL
             }
             return 0;
         }
+
         private static bool IsDuctSystem(string systemName)
         {
             if (string.IsNullOrEmpty(systemName)) return false;
@@ -315,6 +333,7 @@ namespace RevitToMySQL
                    systemName.Contains("ДП") || systemName.Contains("ДВ") ||
                    systemName.Contains("ПЕ") || systemName.Contains("ВЕ") || systemName.Contains("ДПЕ");
         }
+
         private static string SystemTransformer(string origSystem)
         {
             if (string.IsNullOrEmpty(origSystem)) return origSystem ?? "";

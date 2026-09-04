@@ -242,8 +242,10 @@
     <Compile Include="Cache\ParameterCache.cs" />
     <Compile Include="Cache\ParameterResolver.cs" />
     <Compile Include="Cache\TypeParameterCacheProvider.cs" />
-    <Compile Include="ClassLibrary\Class1.cs" />
+    <Compile Include="ClassLibrary\ExportKeyHelper.cs" />
     <Compile Include="ClassLibrary\FindingLevels.cs" />
+    <Compile Include="ClassLibrary\HashHelper.cs" />
+    <Compile Include="ClassLibrary\IncrementalExporter.cs" />
     <Compile Include="ClassLibrary\LevelDetector.cs" />
     <Compile Include="ClassLibrary\SectionCache.cs" />
     <Compile Include="ClassLibrary\MySqlExporter.cs" />

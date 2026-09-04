@@ -27,10 +27,10 @@ namespace RevitToMySQL
         public int ID { get; set; }
         public int SortingCode { get; set; }
         public string WipCode { get; set; }
+        public string Level { get; set; }
         public string DataHash { get; set; }
         public string LastModifiedBy { get; set; }
         public DateTime? LastModified { get; set; }
     }
 }
-
 
